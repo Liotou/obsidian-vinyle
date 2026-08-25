@@ -7,8 +7,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 18px 12px 22px;
+  gap: 16px;
+  /* Le disque respirait mal : la marge est franche, et la latérale suit la
+     taille du cadre pour rester juste dans un panneau étroit comme large. */
+  padding: clamp(18px, 7%, 34px) clamp(16px, 8%, 36px) clamp(20px, 7%, 34px);
   overflow-y: auto;
   /* La gouttière est réservée en permanence : sans cela, l'apparition d'une
      barre de défilement réduirait la largeur, donc le disque, donc la hauteur,
@@ -283,4 +285,80 @@
   .vinyle-disque,
   .vinyle-barre-disque { animation: none !important; }
   .vinyle-bras { transition: none; }
+}
+
+
+/* =========================================================================
+ * Panneau flottant, sur le modèle du panier d'annotations d'Ariane
+ * ========================================================================= */
+
+.vinyle-flottant {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  min-height: 240px;
+  max-width: 96vw;
+  max-height: 92vh;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  /* Poignée de redimensionnement native, dans le coin bas droit. */
+  resize: both;
+}
+
+.vinyle-flottant-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: move;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+.vinyle-flottant-titre {
+  font-weight: 600;
+  font-size: var(--font-ui-smaller);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.vinyle-flottant-fermer {
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.vinyle-flottant-fermer:hover { opacity: 1; }
+
+/* Le corps porte la platine : il doit pouvoir rétrécir, d'où min-height. */
+.vinyle-flottant-corps {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.vinyle-flottant-corps > .vinyle-vue {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Un rappel bref quand on redemande un panneau déjà ouvert. */
+.vinyle-flottant-appel { animation: vinyle-appel 0.9s ease; }
+
+@keyframes vinyle-appel {
+  0%, 100% { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35); }
+  35%      { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), 0 0 0 3px var(--interactive-accent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyle-flottant-appel { animation: none; }
 }

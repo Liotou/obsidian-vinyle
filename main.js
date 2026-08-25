@@ -145,6 +145,8 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     this.minuteur = null;
     this.pannesignalee = false;
 
+    this.flottant = new PanneauFlottant(this);
+
     this.registerView(TYPE_VUE, (feuille) => new VueVinyle(feuille, this));
 
     this.addRibbonIcon('disc-3', 'Vinyle', () => this.ouvrirVue());
@@ -156,8 +158,8 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     });
     this.addCommand({
       id: 'ouvrir-flottant',
-      name: 'Vinyle : ouvrir en fenêtre flottante',
-      callback: () => this.ouvrirVue(true),
+      name: 'Vinyle : afficher ou masquer le panneau flottant',
+      callback: () => this.flottant.basculer(),
     });
     this.addCommand({
       id: 'lecture-pause',
@@ -184,6 +186,9 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
   onunload() {
     if (this.minuteur) window.clearTimeout(this.minuteur);
     this.minuteur = null;
+    // Un panneau en position fixe survivrait au déchargement s'il n'était pas
+    // retiré ici : il est posé sur document.body, pas sur un conteneur géré.
+    if (this.flottant) this.flottant.fermer();
   }
 
   async sauver() {
@@ -194,45 +199,27 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
 
   async ouvrirVue(flottant) {
     const veutFlottant = flottant === undefined ? this.reglages.flottantParDefaut : flottant;
+    if (veutFlottant) { this.flottant.ouvrir(); return; }
     const existantes = this.app.workspace.getLeavesOfType(TYPE_VUE);
-    // Une vue déjà ouverte : on la révèle plutôt que d'en empiler une seconde,
-    // sauf si l'on demande explicitement une fenêtre et qu'aucune n'est détachée.
-    if (existantes.length && !(veutFlottant && !existantes.some((f) => this.estDetachee(f)))) {
-      const cible = veutFlottant ? existantes.find((f) => this.estDetachee(f)) : existantes[0];
-      this.app.workspace.revealLeaf(cible || existantes[0]);
-      return;
-    }
-    const feuille = veutFlottant ? this.feuilleFlottante() : this.app.workspace.getRightLeaf(false);
+    if (existantes.length) { this.app.workspace.revealLeaf(existantes[0]); return; }
+    const feuille = this.app.workspace.getRightLeaf(false);
     if (!feuille) return;
     await feuille.setViewState({ type: TYPE_VUE, active: true });
     this.app.workspace.revealLeaf(feuille);
-  }
-
-  // openPopoutLeaf n'existe que depuis Obsidian 1.0 ; on retombe proprement sur
-  // le volet latéral plutôt que de casser si l'API venait à manquer.
-  feuilleFlottante() {
-    const w = this.app.workspace;
-    if (typeof w.openPopoutLeaf === 'function') {
-      try {
-        return w.openPopoutLeaf({ size: { width: 380, height: 560 } });
-      } catch (e) {
-        try { return w.openPopoutLeaf(); } catch (e2) { /* on retombe plus bas */ }
-      }
-    }
-    new obsidian.Notice("Vinyle : cette version d'Obsidian ne sait pas détacher de fenêtre.");
-    return w.getRightLeaf(false);
-  }
-
-  estDetachee(feuille) {
-    const doc = feuille && feuille.view && feuille.view.containerEl
-      ? feuille.view.containerEl.ownerDocument : null;
-    return !!doc && doc !== document;
   }
 
   vues() {
     return this.app.workspace.getLeavesOfType(TYPE_VUE)
       .map((f) => f.view)
       .filter((v) => v instanceof VueVinyle);
+  }
+
+  // Tous les rendus vivants, volet comme panneau flottant.
+  platines() {
+    const out = [];
+    for (const v of this.vues()) if (v.platine) out.push(v.platine);
+    if (this.flottant && this.flottant.platine) out.push(this.flottant.platine);
+    return out;
   }
 
   /* --- Barre d'état --- */
@@ -260,7 +247,7 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
   // Personne ne regarde : ni volet ouvert, ni élément de barre. On se tait
   // complètement plutôt que de tourner pour rien.
   quelquUnRegarde() {
-    return this.vues().length > 0 || !!this.barre;
+    return this.vues().length > 0 || !!(this.flottant && this.flottant.el) || !!this.barre;
   }
 
   replanifier() {
@@ -362,26 +349,33 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
       this.barre.setAttribute('aria-label', texte || 'Vinyle');
     }
 
-    for (const v of this.vues()) v.peindre(p, this.urlPochette);
+    for (const platine of this.platines()) platine.peindre(p, this.urlPochette);
   }
 };
 
 /* =========================================================================
- * Le volet
+ * La platine : le rendu du disque, indépendant de son contenant
+ *
+ * Deux hôtes s'en servent, le volet et le panneau flottant. Sans cette
+ * séparation, il faudrait écrire deux fois le disque, les commandes et le
+ * calcul de taille, et les deux copies divergeraient à la première retouche.
  * ========================================================================= */
 
-class VueVinyle extends obsidian.ItemView {
-  constructor(feuille, greffon) {
-    super(feuille);
+class Platine {
+  constructor(greffon, conteneur) {
     this.greffon = greffon;
+    this.el = conteneur;
+    this.evenements = [];
+    this.tailleAppliquee = null;
   }
 
-  getViewType() { return TYPE_VUE; }
-  getDisplayText() { return 'Vinyle'; }
-  getIcon() { return 'disc-3'; }
+  ecouter(cible, type, fn) {
+    cible.addEventListener(type, fn);
+    this.evenements.push([cible, type, fn]);
+  }
 
-  async onOpen() {
-    const c = this.contentEl;
+  monter() {
+    const c = this.el;
     c.empty();
     c.addClass('vinyle-vue');
 
@@ -414,33 +408,34 @@ class VueVinyle extends obsidian.ItemView {
     this.jauge.createDiv({ cls: 'vinyle-jauge-remplie' });
     this.temps = this.zoneProgression.createDiv({ cls: 'vinyle-temps' });
 
-    this.appliquerTaille();
+    this.appliquerOptions();
     this.peindre(this.greffon.piste, this.greffon.urlPochette);
 
-    // Le volet est redimensionnable, détachable, et son contenu change de
-    // hauteur avec le titre : un observateur vaut mieux qu'un écouteur de
-    // fenêtre, qui manquerait le glissement d'une cloison.
-    // En fenêtre détachée, l'élément vit dans un autre document : il faut
-    // l'observateur et la boucle d'animation de SA fenêtre, pas de la nôtre.
+    // Le conteneur est redimensionnable et son contenu change de hauteur avec
+    // le titre : un observateur vaut mieux qu'un écouteur de fenêtre, qui
+    // manquerait le glissement d'une cloison ou l'étirement du panneau.
     const vue = c.ownerDocument.defaultView || window;
     if (typeof vue.ResizeObserver === 'function') {
       this.observateur = new vue.ResizeObserver(() => this.ajusterTaille());
       this.observateur.observe(c);
       this.observateur.observe(this.infos);
     }
-    // La mise en page n'est pas encore faite au moment de onOpen : les hauteurs
-    // valent zéro. On remesure au premier rendu.
+    // La mise en page n'est pas faite à cet instant : les hauteurs valent zéro.
     vue.requestAnimationFrame(() => this.ajusterTaille());
+    return this;
+  }
 
-    // Le volet vient de s'ouvrir : on relance le sondage, qui dormait peut-être.
-    this.greffon.battre();
+  demonter() {
+    if (this.observateur) { this.observateur.disconnect(); this.observateur = null; }
+    for (const [cible, type, fn] of this.evenements) cible.removeEventListener(type, fn);
+    this.evenements = [];
   }
 
   bouton(parent, icone, infobulle, ordre) {
     const b = parent.createEl('button', { cls: 'vinyle-bouton' });
     obsidian.setIcon(b, icone);
     b.setAttribute('aria-label', infobulle);
-    this.registerDomEvent(b, 'click', async () => {
+    this.ecouter(b, 'click', async () => {
       b.addClass('vinyle-occupe');
       await commander(ordre);
       b.removeClass('vinyle-occupe');
@@ -449,19 +444,21 @@ class VueVinyle extends obsidian.ItemView {
     return b;
   }
 
-  appliquerTaille() {
+  appliquerOptions() {
+    if (!this.bras) return;
     this.bras.toggleClass('vinyle-invisible', !this.greffon.reglages.montrerBras);
     this.zoneProgression.toggleClass('vinyle-invisible', !this.greffon.reglages.montrerProgression);
+    this.tailleAppliquee = null; // forcer un recalcul après changement d'option
     this.ajusterTaille();
   }
 
   // Le disque prend la place disponible, sans jamais rejeter les textes ni les
-  // commandes hors du volet. On mesure la hauteur réellement occupée par le
+  // commandes hors du cadre. On mesure la hauteur réellement occupée par le
   // reste plutôt que de la deviner : elle change avec un titre sur deux lignes,
   // avec la progression masquée, et avec la taille de police du thème.
   ajusterTaille() {
     const r = this.greffon.reglages;
-    const el = this.contentEl;
+    const el = this.el;
     if (!el || !this.plateau) return;
 
     let t;
@@ -478,9 +475,7 @@ class VueVinyle extends obsidian.ItemView {
       for (const enfant of [this.infos, this.zoneProgression]) {
         if (enfant && enfant.offsetParent !== null) occupe += enfant.offsetHeight + ecart;
       }
-      const hauteurDispo = el.clientHeight - occupe;
-      const largeurDispo = el.clientWidth - cotes;
-      t = Math.min(r.tailleMax || 460, largeurDispo, hauteurDispo);
+      t = Math.min(r.tailleMax || 460, el.clientWidth - cotes, el.clientHeight - occupe);
     }
 
     t = Math.round(Math.max(120, Math.min(900, t)));
@@ -521,11 +516,148 @@ class VueVinyle extends obsidian.ItemView {
     this.temps.setText(enPiste ? duree(pos) + ' / ' + duree(total) : '');
     this.ajusterTaille();
   }
+}
+
+/* =========================================================================
+ * Le volet
+ * ========================================================================= */
+
+class VueVinyle extends obsidian.ItemView {
+  constructor(feuille, greffon) {
+    super(feuille);
+    this.greffon = greffon;
+  }
+
+  getViewType() { return TYPE_VUE; }
+  getDisplayText() { return 'Vinyle'; }
+  getIcon() { return 'disc-3'; }
+
+  async onOpen() {
+    this.platine = new Platine(this.greffon, this.contentEl).monter();
+    // Le volet vient de s'ouvrir : on relance le sondage, qui dormait peut-être.
+    this.greffon.battre();
+  }
 
   async onClose() {
-    if (this.observateur) { this.observateur.disconnect(); this.observateur = null; }
+    if (this.platine) { this.platine.demonter(); this.platine = null; }
     // Plus personne ne regarde peut-être : le greffon recalculera de lui-même.
     this.greffon.replanifier();
+  }
+}
+
+/* =========================================================================
+ * Le panneau flottant, sur le modèle du panier d'annotations d'Ariane :
+ * un cadre en position fixe dans la fenêtre d'Obsidian, déplaçable par son
+ * en-tête et redimensionnable par son coin. Ce n'est pas une fenêtre système.
+ * ========================================================================= */
+
+class PanneauFlottant {
+  constructor(greffon) {
+    this.greffon = greffon;
+    this.evenements = [];
+  }
+
+  ecouter(cible, type, fn) {
+    cible.addEventListener(type, fn);
+    this.evenements.push([cible, type, fn]);
+  }
+
+  ouvrir() {
+    if (this.el) { this.el.addClass('vinyle-flottant-appel'); return; }
+    const pos = this.greffon.reglages.flottantPosition || {};
+
+    const el = document.createElement('div');
+    el.className = 'vinyle-flottant';
+    el.style.width = Math.max(220, pos.largeur || 320) + 'px';
+    el.style.height = Math.max(240, pos.hauteur || 420) + 'px';
+    if (pos.gauche != null && pos.haut != null) {
+      el.style.left = pos.gauche + 'px';
+      el.style.top = pos.haut + 'px';
+    } else {
+      el.style.top = '90px';
+      el.style.right = '34px';
+    }
+
+    const entete = el.createDiv({ cls: 'vinyle-flottant-entete' });
+    entete.createSpan({ cls: 'vinyle-flottant-titre', text: 'Vinyle' });
+    const fermer = entete.createSpan({ cls: 'vinyle-flottant-fermer', text: '✕' });
+    fermer.setAttribute('aria-label', 'Fermer');
+    this.ecouter(fermer, 'click', () => this.fermer());
+
+    const corps = el.createDiv({ cls: 'vinyle-flottant-corps' });
+
+    document.body.appendChild(el);
+    this.el = el;
+    this.rendreDeplacable(el, entete);
+    this.platine = new Platine(this.greffon, corps).monter();
+
+    // Le coin de redimensionnement est natif : on retient la taille choisie.
+    const vue = el.ownerDocument.defaultView || window;
+    if (typeof vue.ResizeObserver === 'function') {
+      this.suivi = new vue.ResizeObserver(() => this.memoriser());
+      this.suivi.observe(el);
+    }
+    this.greffon.battre();
+  }
+
+  fermer() {
+    if (!this.el) return;
+    this.memoriser();
+    if (this.suivi) { this.suivi.disconnect(); this.suivi = null; }
+    if (this.platine) { this.platine.demonter(); this.platine = null; }
+    for (const [cible, type, fn] of this.evenements) cible.removeEventListener(type, fn);
+    this.evenements = [];
+    this.el.remove();
+    this.el = null;
+    this.greffon.replanifier();
+  }
+
+  basculer() {
+    if (this.el) this.fermer(); else this.ouvrir();
+  }
+
+  memoriser() {
+    if (!this.el) return;
+    const r = this.el.getBoundingClientRect();
+    this.greffon.reglages.flottantPosition = {
+      gauche: Math.round(r.left), haut: Math.round(r.top),
+      largeur: Math.round(r.width), hauteur: Math.round(r.height),
+    };
+    // On n'écrit sur le disque qu'une fois le geste terminé.
+    if (this.sauvegarde) window.clearTimeout(this.sauvegarde);
+    this.sauvegarde = window.setTimeout(() => this.greffon.sauver(), 600);
+  }
+
+  rendreDeplacable(el, poignee) {
+    let sx = 0, sy = 0, ox = 0, oy = 0, actif = false;
+    const surMouvement = (e) => {
+      if (!actif) return;
+      // On garde le panneau attrapable : jamais entièrement hors de l'écran.
+      const l = Math.min(window.innerWidth - 60, Math.max(-el.offsetWidth + 80, ox + e.clientX - sx));
+      const h = Math.min(window.innerHeight - 40, Math.max(0, oy + e.clientY - sy));
+      el.style.left = l + 'px';
+      el.style.top = h + 'px';
+      el.style.right = 'auto';
+    };
+    const surRelache = () => {
+      if (!actif) return;
+      actif = false;
+      document.removeEventListener('mousemove', surMouvement);
+      document.removeEventListener('mouseup', surRelache);
+      this.memoriser();
+    };
+    this.ecouter(poignee, 'mousedown', (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains('vinyle-flottant-fermer')) return;
+      const rect = el.getBoundingClientRect();
+      ox = rect.left; oy = rect.top; sx = e.clientX; sy = e.clientY;
+      el.style.left = rect.left + 'px';
+      el.style.top = rect.top + 'px';
+      el.style.right = 'auto';
+      actif = true;
+      document.addEventListener('mousemove', surMouvement);
+      document.addEventListener('mouseup', surRelache);
+      e.preventDefault();
+    });
   }
 }
 
@@ -545,7 +677,7 @@ class OngletVinyle extends obsidian.PluginSettingTab {
     const g = this.greffon;
     const maj = async () => {
       await g.sauver();
-      for (const v of g.vues()) { v.appliquerTaille(); v.peindre(g.piste, g.urlPochette); }
+      for (const platine of g.platines()) platine.appliquerOptions();
       g.peindre();
       g.replanifier();
     };
@@ -588,8 +720,8 @@ class OngletVinyle extends obsidian.PluginSettingTab {
     new obsidian.Setting(c).setName('Ouverture').setHeading();
 
     new obsidian.Setting(c)
-      .setName('Ouvrir en fenêtre flottante')
-      .setDesc("L'icône du ruban ouvre une fenêtre détachée, déplaçable hors d'Obsidian, plutôt que le volet latéral. La commande « ouvrir en fenêtre flottante » reste disponible dans les deux cas.")
+      .setName('Ouvrir le panneau flottant')
+      .setDesc("L'icône du ruban ouvre un panneau posé par-dessus Obsidian, déplaçable par son en-tête et redimensionnable par son coin, plutôt que le volet latéral. La commande de bascule reste disponible dans les deux cas.")
       .addToggle((t) => t.setValue(g.reglages.flottantParDefaut === true)
         .onChange(async (v) => { g.reglages.flottantParDefaut = v; await maj(); }));
 

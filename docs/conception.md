@@ -78,11 +78,29 @@ largeur, donc le disque, donc la hauteur, donc la barre disparaîtrait, et
 l'observateur oscillerait sans fin. Et un seuil de deux pixels empêche qu'une
 écriture de la variable CSS ne relance l'observateur en boucle.
 
-La vue s'ouvre aussi en **fenêtre détachée**, par une commande ou par défaut
-depuis le ruban, via `openPopoutLeaf`. Une fenêtre détachée vit dans un autre
-document : l'observateur, `getComputedStyle` et `requestAnimationFrame` sont pris
-sur la fenêtre propriétaire de l'élément, pas sur la fenêtre principale, faute de
-quoi le redimensionnement ne serait jamais vu.
+Le rendu du disque vit dans une classe **`Platine`**, indépendante de son
+contenant. Deux hôtes s'en servent : le volet (`ItemView`) et le panneau
+flottant. Sans cette séparation il faudrait écrire deux fois le disque, les
+commandes et le calcul de taille, et les deux copies divergeraient à la première
+retouche.
+
+Le **panneau flottant** suit le panier d'annotations d'Ariane : un cadre en
+`position: fixed` posé sur `document.body`, déplaçable par son en-tête, fermé
+par une croix, redimensionnable par le coin natif (`resize: both`). Ce n'est pas
+une fenêtre système. Sa position et sa taille sont retenues, l'écriture sur
+disque étant différée de six cents millisecondes pour ne pas sauvegarder à
+chaque pixel du glissement. Le déplacement est borné pour qu'il ne parte jamais
+entièrement hors de l'écran, et `onunload` le retire, faute de quoi un cadre
+posé sur `document.body` survivrait au déchargement du greffon.
+
+L'observateur, `getComputedStyle` et `requestAnimationFrame` sont pris sur la
+fenêtre propriétaire de l'élément et non sur la principale : le volet peut être
+déplacé dans une fenêtre détachée par Obsidian lui-même, et le calcul cesserait
+sinon de fonctionner.
+
+Les marges autour du disque sont en `clamp()`, donc proportionnelles au cadre :
+de 16 à 36 pixels sur les côtés. Mesuré, le disque garde de 36 à 40 pixels de
+jeu de chaque côté dans le panneau, contre 12 auparavant.
 
 ## Quand cela rate
 
