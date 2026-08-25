@@ -63,6 +63,27 @@ prolongée ne coûte rien.
 
 `prefers-reduced-motion` coupe rotation et transition.
 
+## Taille et fenêtre
+
+Le disque suit le volet. Un `ResizeObserver` mesure ce qui reste réellement
+disponible, en soustrayant la hauteur occupée par les textes et la progression,
+plutôt qu'en la devinant : elle change avec un titre sur deux lignes, avec la
+progression masquée, et avec la taille de police du thème. Un plafond réglable
+évite qu'un grand écran ne donne un disque démesuré ; un mode fixe reste
+disponible.
+
+Deux pièges traités. La gouttière de défilement est réservée en permanence
+(`scrollbar-gutter: stable`) : sans cela, l'apparition d'une barre réduirait la
+largeur, donc le disque, donc la hauteur, donc la barre disparaîtrait, et
+l'observateur oscillerait sans fin. Et un seuil de deux pixels empêche qu'une
+écriture de la variable CSS ne relance l'observateur en boucle.
+
+La vue s'ouvre aussi en **fenêtre détachée**, par une commande ou par défaut
+depuis le ruban, via `openPopoutLeaf`. Une fenêtre détachée vit dans un autre
+document : l'observateur, `getComputedStyle` et `requestAnimationFrame` sont pris
+sur la fenêtre propriétaire de l'élément, pas sur la fenêtre principale, faute de
+quoi le redimensionnement ne serait jamais vu.
+
 ## Quand cela rate
 
 | Situation | Comportement |
@@ -81,6 +102,9 @@ prolongée ne coûte rien.
 - Chemins d'erreur : script invalide, application absente, délai dépassé, refus
   d'autorisation correctement distingué d'une panne ordinaire.
 - Module chargé hors d'Obsidian avec un faux `obsidian`, dix méthodes présentes.
+- Dimensionnement rejoué sur huit géométries : volet étroit, volet large, fenêtre
+  flottante, volet plat, progression masquée, titre long, plafond abaissé, mode
+  fixe. Dix appels sur une géométrie stable ne produisent qu'une seule écriture.
 
 ## Ce qui reste à faire
 

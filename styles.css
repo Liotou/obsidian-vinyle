@@ -10,6 +10,13 @@
   gap: 14px;
   padding: 18px 12px 22px;
   overflow-y: auto;
+  /* La gouttière est réservée en permanence : sans cela, l'apparition d'une
+     barre de défilement réduirait la largeur, donc le disque, donc la hauteur,
+     donc la barre disparaîtrait, et l'observateur oscillerait sans fin. */
+  scrollbar-gutter: stable;
+  /* Une fenêtre détachée n'a pas de fond propre. */
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .vinyle-invisible { display: none !important; }
