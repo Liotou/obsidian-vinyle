@@ -1,0 +1,279 @@
+/* Vinyle — tout est dessiné en CSS : aucun PNG de disque ni de bras à livrer. */
+
+.vinyle-vue {
+  --vinyle-taille: 300px;
+  --vinyle-noir: #14151a;
+  --vinyle-noir-clair: #2a2c34;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 12px 22px;
+  overflow-y: auto;
+}
+
+.vinyle-invisible { display: none !important; }
+
+/* ---------- Le plateau ---------- */
+
+.vinyle-plateau {
+  position: relative;
+  width: var(--vinyle-taille);
+  height: var(--vinyle-taille);
+  flex: 0 0 auto;
+  max-width: 100%;
+  border-radius: 50%;
+  /* L'ombre portée reste immobile : c'est le disque qui tourne, pas la lumière. */
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* Reflet fixe, posé par-dessus le disque en rotation. */
+.vinyle-plateau::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    conic-gradient(from 210deg,
+      rgba(255, 255, 255, 0) 0deg,
+      rgba(255, 255, 255, 0.14) 26deg,
+      rgba(255, 255, 255, 0) 62deg,
+      rgba(255, 255, 255, 0) 180deg,
+      rgba(255, 255, 255, 0.10) 208deg,
+      rgba(255, 255, 255, 0) 246deg,
+      rgba(255, 255, 255, 0) 360deg);
+  mix-blend-mode: screen;
+  opacity: 0.75;
+}
+
+/* ---------- Le disque ---------- */
+
+.vinyle-disque {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 1;
+  background:
+    /* sillons */
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.055) 0 1px,
+      rgba(0, 0, 0, 0) 1px 4px),
+    /* bord légèrement plus clair, comme un disque neuf sous la lumière */
+    radial-gradient(circle at 50% 50%,
+      var(--vinyle-noir-clair) 0 30%,
+      var(--vinyle-noir) 34% 92%,
+      var(--vinyle-noir-clair) 96% 100%);
+  animation: vinyle-rotation 20s linear infinite;
+  animation-play-state: paused;
+}
+
+.vinyle-disque.vinyle-tourne { animation-play-state: running; }
+
+/* Rien en cours : le plateau s'efface, sans disparaître. */
+.vinyle-plateau:not(.vinyle-actif) { opacity: 0.45; filter: saturate(0.4); }
+.vinyle-plateau { transition: opacity 0.4s ease, filter 0.4s ease; }
+
+@keyframes vinyle-rotation {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* La pochette occupe le cœur du disque, le vinyle reste visible en couronne. */
+.vinyle-pochette {
+  position: absolute;
+  left: 18%;
+  top: 18%;
+  width: 64%;
+  height: 64%;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    inset 0 0 22px rgba(0, 0, 0, 0.35);
+}
+
+/* Sans pochette (radio, piste sans illustration) : le plateau reste nu. */
+.vinyle-pochette.vinyle-sans-pochette {
+  background-image: radial-gradient(circle at 50% 50%,
+    var(--background-modifier-border) 0 40%,
+    rgba(0, 0, 0, 0.25) 100%);
+}
+
+/* Zone d'étiquette : assez discrète pour ne pas manger la pochette. */
+.vinyle-etiquette {
+  position: absolute;
+  left: 41%;
+  top: 41%;
+  width: 18%;
+  height: 18%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 0 10px rgba(0, 0, 0, 0.4);
+}
+
+.vinyle-trou {
+  position: absolute;
+  left: 48.4%;
+  top: 48.4%;
+  width: 3.2%;
+  height: 3.2%;
+  border-radius: 50%;
+  background: var(--background-primary);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------- Le bras ---------- */
+
+.vinyle-bras {
+  position: absolute;
+  top: -6%;
+  right: -4%;
+  width: 26%;
+  height: 96%;
+  z-index: 4;
+  pointer-events: none;
+  transform-origin: 50% 9%;
+  transform: rotate(-26deg);
+  transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
+}
+
+.vinyle-bras.vinyle-pose { transform: rotate(2deg); }
+
+.vinyle-bras svg { width: 100%; height: 100%; overflow: visible; }
+.vinyle-bras .vinyle-pivot { fill: var(--background-modifier-border); stroke: rgba(0,0,0,.35); }
+.vinyle-bras .vinyle-tige { fill: var(--text-muted); }
+.vinyle-bras .vinyle-cellule { fill: var(--text-normal); }
+
+/* ---------- Commandes ---------- */
+
+.vinyle-commandes {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 5;
+}
+
+.vinyle-plateau:hover .vinyle-commandes,
+.vinyle-commandes:focus-within {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.vinyle-bouton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.vinyle-bouton:hover { background: rgba(255, 255, 255, 0.16); }
+.vinyle-bouton.vinyle-occupe { opacity: 0.45; pointer-events: none; }
+.vinyle-bouton .svg-icon { width: 17px; height: 17px; }
+
+/* ---------- Textes ---------- */
+
+.vinyle-infos { text-align: center; max-width: 100%; }
+
+.vinyle-titre {
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.vinyle-artiste { color: var(--text-muted); font-size: var(--font-ui-small); }
+.vinyle-album { color: var(--text-faint); font-size: var(--font-ui-smaller); font-style: italic; }
+
+/* ---------- Progression ---------- */
+
+.vinyle-progression { width: 100%; max-width: var(--vinyle-taille); }
+
+.vinyle-jauge {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.vinyle-jauge-remplie {
+  height: 100%;
+  width: 0;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+  transition: width 0.4s linear;
+}
+
+.vinyle-temps {
+  margin-top: 4px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Barre d'état ---------- */
+
+.vinyle-barre {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.vinyle-barre.vinyle-cache { display: none; }
+
+.vinyle-barre-disque {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background:
+    radial-gradient(circle at 50% 50%,
+      var(--text-normal) 0 22%,
+      rgba(0, 0, 0, 0) 24%),
+    repeating-radial-gradient(circle at 50% 50%,
+      var(--text-muted) 0 0.5px,
+      var(--background-modifier-border) 0.5px 1.6px);
+  animation: vinyle-rotation 3s linear infinite;
+  animation-play-state: paused;
+}
+
+.vinyle-barre-disque.vinyle-tourne { animation-play-state: running; }
+
+.vinyle-barre-texte {
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le mouvement peut gêner : on le coupe si le système le demande. */
+@media (prefers-reduced-motion: reduce) {
+  .vinyle-disque,
+  .vinyle-barre-disque { animation: none !important; }
+  .vinyle-bras { transition: none; }
+}
