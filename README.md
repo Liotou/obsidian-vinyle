@@ -85,7 +85,7 @@ outwards to go back. The time shown tells you where you will land, and nothing
 is sent to Music until you let go.
 
 Lift it clear of the record and **the sound cuts out** — the platter keeps
-turning, dimmed, exactly as a real one does when the stylus leaves the groove.
+turning, exactly as a real one does when the stylus leaves the groove.
 Set it back down and the sound returns, at the point the groove has reached
 under it, because the record never stopped. It is the gesture of a real
 turntable, not a metaphor bolted on afterwards.

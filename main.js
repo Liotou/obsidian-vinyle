@@ -1902,7 +1902,6 @@ class Platine {
     const muet = !!(piste && piste.muet);
     this.disque.toggleClass('vinyle-tourne', joue);
     this.plateau.toggleClass('vinyle-actif', enPiste);
-    this.plateau.toggleClass('vinyle-muet', muet && enPiste);
 
     // Changement de piste : le disque s'échange tout seul. Au premier rendu
     // il n'y a rien à remplacer, on pose directement.

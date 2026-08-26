@@ -314,8 +314,9 @@ le vrai Music l'a montré. On passe donc par `sound volume`, qu'il accepte, en
 retenant le volume d'avant pour le rendre intact. Vérifié : 100, puis 0, puis
 100 de nouveau.
 
-Trois conséquences. Le plateau s'assombrit pendant le silence, comme lorsque
-rien ne joue, sans cesser de tourner. Le bras doit être forcé à rester levé :
+Deux conséquences. Le plateau ne change pas d'aspect pendant le silence : un
+premier jet l'assombrissait comme lorsque rien ne joue, et l'effet a été retiré,
+le bras levé disant déjà ce qu'il faut. Le bras doit être forcé à rester levé :
 la lecture continuant, il redescendrait tout seul en quelques battements et
 contredirait le geste. Et l'état muet est lu dans l'interrogation, ce qui relève
 le bras de lui-même quand le son est coupé depuis Music.
