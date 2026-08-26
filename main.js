@@ -294,7 +294,7 @@ tell application "Music"
   end try
   return e & tab & (persistent ID of p) & tab & (name of p) & tab & ¬
     (artist of p) & tab & (album of p) & tab & (player position as text) & tab & ¬
-    (duration of p as text) & tab & pochette & tab & (mute as text)
+    (duration of p as text) & tab & pochette & tab & (sound volume as text)
 end tell
 `;
 
@@ -341,9 +341,10 @@ async function lireEtat() {
     duree: nombreLocal(c[6]),
     pochette: c[7] === '1',
     // Le bras relevé coupe le son sans arrêter le disque : il faut donc savoir
-    // si Music est muet, y compris quand c'est l'utilisateur qui l'a fait
+    // si Music est à zéro, y compris quand c'est l'utilisateur qui l'a fait
     // depuis Music, pour que le bras s'en trouve relevé de lui-même.
-    muet: c[8] === 'true',
+    volume: nombreLocal(c[8]),
+    muet: nombreLocal(c[8]) === 0,
   };
 }
 
@@ -418,11 +419,26 @@ function commander(ordre) {
 // n'accepte qu'un point dans le script qu'on lui soumet : une virgule y est une
 // erreur de syntaxe. L'asymétrie est silencieuse, le déplacement échouait sans
 // rien dire. toFixed produit toujours un point, quel que soit le système.
+// Music refuse « set mute » : la propriété se lit mais ne s'écrit pas, et
+// l'essai rend une erreur 9038. Vérifié contre le vrai Music, l'échec étant
+// silencieux dans le greffon. On passe donc par le volume, qu'il accepte, en
+// retenant celui d'avant pour le rendre intact.
+//
 // Le greffon ne rétablit que le silence qu'il a lui-même posé : défaire celui
 // que l'utilisateur a demandé dans Music serait s'arroger son réglage.
-function rendreMuet(muet) {
+async function couperSon() {
+  const r = await osascript(['-e',
+    'tell application "Music" to return sound volume as text'], 4000);
+  const avant = r.erreur ? 100 : Math.round(nombreLocal(r.texte));
+  const x = await osascript(['-e', 'tell application "Music" to set sound volume to 0'], 4000);
+  if (x.erreur) return 0;               // rien n'a été coupé, rien à rendre
+  return avant > 0 ? avant : 100;       // déjà à zéro : on rendra un volume franc
+}
+
+function rendreSon(volume) {
+  const v = Math.max(1, Math.min(100, Math.round(volume || 100)));
   return osascript(['-e',
-    'tell application "Music" to set mute to ' + (muet ? 'true' : 'false')], 4000)
+    'tell application "Music" to set sound volume to ' + v], 4000)
     .then((r) => !r.erreur);
 }
 
@@ -583,6 +599,7 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     this.minuteur = null;
     this.pannesignalee = false;
     this.muetParNous = false;   // le silence est-il de notre fait ?
+    this.volumeAvant = 100;     // le volume à rendre quand le bras se repose
     this.cachePochettes = {};
     this.cachePistes = {};     // pistes par disque, une interrogation suffit
     this.attente = [];         // file des pochettes à tirer, un seul fil
@@ -639,7 +656,7 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     if (this.bruiteur) this.bruiteur.fermer();
     // Sans cela, quitter Obsidian le bras levé laisserait Music muet, et l'on
     // chercherait longtemps pourquoi le son ne revient pas.
-    if (this.muetParNous) { this.muetParNous = false; rendreMuet(false); }
+    if (this.muetParNous) { this.muetParNous = false; rendreSon(this.volumeAvant); }
     // Un panneau en position fixe survivrait au déchargement s'il n'était pas
     // retiré ici : il est posé sur document.body, pas sur un conteneur géré.
     if (this.flottant) this.flottant.fermer();
@@ -1857,15 +1874,18 @@ class Platine {
       // Bras relevé hors du disque : le saphir ne lit plus, mais le plateau
       // continue de tourner. On coupe donc le son sans arrêter la lecture, ce
       // qui laisse au bouton la pause et au rangement du disque l'arrêt.
-      await rendreMuet(true);
-      this.greffon.muetParNous = true;
+      const avant = await couperSon();
+      if (avant) {
+        this.greffon.volumeAvant = avant;
+        this.greffon.muetParNous = true;
+      }
       await this.greffon.battre(true);
       return;
     }
     // Reposer le saphir rend le son, et le repose là où le sillon est passé
     // sous lui : le disque a continué de tourner pendant le silence.
     if (this.greffon.muetParNous || piste.muet) {
-      await rendreMuet(false);
+      await rendreSon(this.greffon.volumeAvant);
       this.greffon.muetParNous = false;
     }
     const total = piste.duree || 0;

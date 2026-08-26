@@ -306,6 +306,14 @@ double emploi avec le bouton ; le rendre muet est à la fois plus juste et plus
 fidèle, un plateau continuant de tourner quand le saphir le quitte. Reposer le
 bras rend donc le son là où le sillon est passé, et non là où on l'a levé.
 
+**Troisième piège silencieux de Music.** `set mute to true` rend une erreur
+9038, la propriété se lisant sans s'écrire. `osacompile` la valide pourtant, la
+syntaxe étant correcte, et dans le greffon l'échec ne disait rien : le bras
+revenait se poser sur le disque et le son ne se coupait pas. Seul l'essai contre
+le vrai Music l'a montré. On passe donc par `sound volume`, qu'il accepte, en
+retenant le volume d'avant pour le rendre intact. Vérifié : 100, puis 0, puis
+100 de nouveau.
+
 Trois conséquences. Le plateau s'assombrit pendant le silence, comme lorsque
 rien ne joue, sans cesser de tourner. Le bras doit être forcé à rester levé :
 la lecture continuant, il redescendrait tout seul en quelques battements et
