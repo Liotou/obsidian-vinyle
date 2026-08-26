@@ -590,7 +590,9 @@ class Platine {
     this.etiquette = this.disque.createDiv({ cls: 'vinyle-etiquette' });
     this.trou = this.disque.createDiv({ cls: 'vinyle-trou' });
 
-    this.commandes = this.plateau.createDiv({ cls: 'vinyle-commandes' });
+    // Sous le plateau et non par-dessus : au-dessus du disque, elles
+    // interceptaient la souris et gênaient la prise du bras.
+    this.commandes = c.createDiv({ cls: 'vinyle-commandes' });
     this.btnPrec = this.bouton(this.commandes, 'skip-back', 'Piste précédente', 'precedent');
     this.btnJouer = this.bouton(this.commandes, 'play', 'Lecture ou pause', 'lecture');
     this.btnSuiv = this.bouton(this.commandes, 'skip-forward', 'Piste suivante', 'suivant');
@@ -688,7 +690,7 @@ class Platine {
 
       const visible = (x) => x && x.offsetParent !== null;
       let occupe = marges;
-      for (const enfant of [this.infos, this.zoneProgression]) {
+      for (const enfant of [this.commandes, this.infos, this.zoneProgression]) {
         if (visible(enfant)) occupe += enfant.offsetHeight + ecart;
       }
       let largeurPrise = cotes;
@@ -807,8 +809,10 @@ class Platine {
     // Forcer un reflux, sans quoi rejouer la même animation ne repart pas.
     void this.porteur.offsetWidth;
     this.porteur.addClass('vinyle-echange');
-    this.minuteurEchange = window.setTimeout(() => this.poserPochette(url), 380);
-    this.minuteurFin = window.setTimeout(() => this.porteur.removeClass('vinyle-echange'), 800);
+    // 420 ms au total, la pochette changeant à mi-course. Au-delà, l'attente se
+    // sent : on regarde un disque vide pendant que la musique a déjà changé.
+    this.minuteurEchange = window.setTimeout(() => this.poserPochette(url), 190);
+    this.minuteurFin = window.setTimeout(() => this.porteur.removeClass('vinyle-echange'), 440);
   }
 
   /* ------------------------------ Le bras ------------------------------ */

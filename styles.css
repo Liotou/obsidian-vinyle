@@ -69,7 +69,7 @@
 }
 
 .vinyle-porte-disque.vinyle-echange {
-  animation: vinyle-echange 800ms cubic-bezier(0.32, 0, 0.16, 1) both;
+  animation: vinyle-echange 420ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 @keyframes vinyle-echange {
@@ -198,44 +198,37 @@
 
 /* ---------- Commandes ---------- */
 
+/* Sous le plateau, jamais dessus : par-dessus le disque, elles interceptaient
+   la souris et empêchaient d'attraper le bras. */
 .vinyle-commandes {
-  position: absolute;
-  left: 50%;
-  bottom: 8%;
-  transform: translateX(-50%) translateY(6px);
+  flex: 0 0 auto;
   display: flex;
-  gap: 6px;
-  padding: 5px 8px;
+  gap: 4px;
+  padding: 4px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  opacity: 0;
-  transition: opacity 0.18s ease, transform 0.18s ease;
-  z-index: 5;
-}
-
-.vinyle-plateau:hover .vinyle-commandes,
-.vinyle-commandes:focus-within {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  background: var(--background-modifier-hover);
 }
 
 .vinyle-bouton {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: #fff;
+  color: var(--text-muted);
   cursor: pointer;
   box-shadow: none;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.vinyle-bouton:hover { background: rgba(255, 255, 255, 0.16); }
+.vinyle-bouton:hover {
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
 .vinyle-bouton.vinyle-occupe { opacity: 0.45; pointer-events: none; }
 .vinyle-bouton .svg-icon { width: 17px; height: 17px; }
 
@@ -361,8 +354,6 @@
 .vinyle-flottant-titre {
   font-weight: 600;
   font-size: var(--font-ui-smaller);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--text-muted);
 }
 
@@ -424,9 +415,10 @@
 /* Cadre large : l'étagère se dresse à droite du plateau. */
 .vinyle-vue.vinyle-large { flex-direction: row; align-items: center; }
 .vinyle-vue.vinyle-large > .vinyle-plateau { order: 1; }
-.vinyle-vue.vinyle-large > .vinyle-infos { order: 2; }
-.vinyle-vue.vinyle-large > .vinyle-progression { order: 3; }
-.vinyle-vue.vinyle-large > .vinyle-etagere { order: 4; align-self: stretch; }
+.vinyle-vue.vinyle-large > .vinyle-commandes { order: 2; }
+.vinyle-vue.vinyle-large > .vinyle-infos { order: 3; }
+.vinyle-vue.vinyle-large > .vinyle-progression { order: 4; }
+.vinyle-vue.vinyle-large > .vinyle-etagere { order: 5; align-self: stretch; }
 .vinyle-vue.vinyle-large .vinyle-rail {
   flex-direction: column;
   height: 100%;
@@ -435,7 +427,7 @@
 
 .vinyle-pochette-etagere {
   flex: 0 0 auto;
-  width: 76px;
+  width: 62px;
   scroll-snap-align: center;
   display: flex;
   flex-direction: column;
@@ -453,8 +445,8 @@
 .vinyle-pochette-etagere.vinyle-enleve { opacity: 0.35; transform: scale(0.9); }
 
 .vinyle-rondelle {
-  width: 68px;
-  height: 68px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -466,7 +458,7 @@
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.3),
     inset 0 0 0 1px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 8px rgba(20, 21, 26, 0.85);
+    inset 0 0 0 6px rgba(20, 21, 26, 0.85);
   transition: box-shadow 0.25s ease;
 }
 
@@ -474,7 +466,7 @@
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.42),
     inset 0 0 0 1px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 8px rgba(20, 21, 26, 0.85);
+    inset 0 0 0 6px rgba(20, 21, 26, 0.85);
 }
 
 .vinyle-etiquette-etagere {
@@ -486,7 +478,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  white-space: nowrap;
   -webkit-box-orient: vertical;
 }
 
