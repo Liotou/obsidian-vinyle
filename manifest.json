@@ -1,9 +1,9 @@
 {
   "id": "vinyle",
   "name": "Vinyle",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "minAppVersion": "1.0.0",
-  "description": "Un tourne-disque dans Obsidian : la pochette de la musique Apple Music en cours tourne sur un vinyle, dans un volet déplaçable et dans la barre d'état. macOS, sans clé API.",
+  "description": "Un tourne-disque dans votre coffre : la pochette de la musique Apple Music en cours tourne sur un vinyle, dans un volet déplaçable et dans la barre d'état. macOS, sans clé API.",
   "author": "Liotou",
   "fundingUrl": "https://buymeacoffee.com/liotou",
   "isDesktopOnly": true,

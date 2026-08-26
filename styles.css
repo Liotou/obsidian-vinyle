@@ -30,7 +30,9 @@
   box-sizing: border-box;
 }
 
-.vinyle-invisible { display: none !important; }
+/* La règle porte sur un enfant du conteneur : elle est donc plus spécifique que
+   les display des éléments qu'elle masque, et n'a pas à forcer la priorité. */
+.vinyle-vue .vinyle-invisible { display: none; }
 
 /* ---------- Le plateau ---------- */
 
@@ -354,7 +356,7 @@
 /* Le mouvement peut gêner : on le coupe si le système le demande. */
 @media (prefers-reduced-motion: reduce) {
   .vinyle-disque,
-  .vinyle-barre-disque { animation: none !important; }
+  .vinyle-barre-disque { animation: none; }
   .vinyle-bras { transition: none; }
 }
 
@@ -451,7 +453,6 @@
   overflow: auto;
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
-  scrollbar-width: thin;
 }
 
 /* Cadre large : l'étagère se dresse à droite du plateau. */
@@ -642,7 +643,6 @@
   /* Même raison qu'ailleurs : une barre qui apparaît réduirait la largeur,
      donc les colonnes, donc la hauteur, et l'observateur oscillerait. */
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
   scroll-behavior: smooth;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
