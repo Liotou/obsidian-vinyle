@@ -34,6 +34,8 @@ const REGLAGES_DEFAUT = {
   montrerBras: true,
   montrerProgression: true,
   montrerBarreEtat: true,
+  etagere: [],            // [{ type: 'liste' | 'album', nom }]
+  montrerEtagere: true,
 };
 
 /* =========================================================================
@@ -103,12 +105,44 @@ async function lireEtat() {
   };
 }
 
+// Les pochettes ne sont pas toutes du même format : la piste en cours est
+// arrivée en PNG, celles de la bibliothèque en JPEG. Fabriquer une URL en
+// « data:image/png » en dur produisait un type menteur. On lit les octets.
+function typeImage(octets) {
+  if (!octets || octets.length < 4) return null;
+  if (octets[0] === 0x89 && octets[1] === 0x50 && octets[2] === 0x4e) return 'image/png';
+  if (octets[0] === 0xff && octets[1] === 0xd8 && octets[2] === 0xff) return 'image/jpeg';
+  return null;
+}
+
+function urlDonnees(chemin) {
+  try {
+    const octets = fs.readFileSync(chemin);
+    const type = typeImage(octets);
+    if (!type) return null;
+    return 'data:' + type + ';base64,' + octets.toString('base64');
+  } catch (e) {
+    return null;
+  }
+}
+
+// sips est livré avec macOS : pas de dépendance à installer. Une pochette de
+// 800 pixels tombe à une vingtaine de kilooctets, ce qui compte quand
+// l'étagère en porte vingt.
+function reduire(chemin, cote) {
+  return new Promise((resoudre) => {
+    execFile('sips', ['-Z', String(cote), chemin, '--out', chemin], { timeout: 6000 },
+      (err) => resoudre(!err));
+  });
+}
+
 // Extrait la pochette de la piste en cours vers un fichier. Music.app ne sait
 // pas cibler une piste par identifiant sans la sélectionner, on prend donc
 // « current track », ce qui suffit puisqu'on n'appelle ceci qu'au changement.
-async function extrairePochette(cheminAbsolu) {
+async function extrairePochette(cheminAbsolu, specificateur) {
+  const source = specificateur || 'current track';
   const script = `
-tell application "Music" to set d to raw data of artwork 1 of current track
+tell application "Music" to set d to raw data of artwork 1 of ${source}
 set f to open for access POSIX file ${JSON.stringify(cheminAbsolu)} with write permission
 set eof f to 0
 write d to f
@@ -117,6 +151,10 @@ return "ok"
 `;
   const r = await osascript(['-e', script], 8000);
   return !r.erreur && r.texte === 'ok';
+}
+
+function echapperAS(x) {
+  return '"' + String(x == null ? '' : x).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 }
 
 function commander(ordre) {
@@ -143,6 +181,66 @@ function positionner(secondes) {
     .then((r) => !r.erreur);
 }
 
+/* --------------------------- L'étagère ---------------------------------- */
+
+// Où trouver la pochette qui représente une entrée de l'étagère : une liste ou
+// un album n'ont pas d'illustration propre, on prend celle de leur première
+// piste.
+function specificateurDe(item) {
+  if (item.type === 'liste') return '(first track of playlist named ' + echapperAS(item.nom) + ')';
+  return '(first track of library playlist 1 whose album is ' + echapperAS(item.nom) + ')';
+}
+
+function ordreDeLecture(item) {
+  if (item.type === 'liste') return 'play playlist named ' + echapperAS(item.nom);
+  return 'play (first track of library playlist 1 whose album is ' + echapperAS(item.nom) + ')';
+}
+
+function cleItem(item) {
+  const s = item.type + '\u0000' + item.nom;
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return item.type + '-' + h.toString(16);
+}
+
+async function listerListes() {
+  // On écarte les listes vides, qui ne donneraient pas de pochette, et les
+  // listes de clips que Music fabrique tout seul.
+  const r = await osascript(['-e',
+    'set out to ""\n'
+    + 'tell application "Music"\n'
+    + '  repeat with p in user playlists\n'
+    + '    try\n'
+    + '      if (count of tracks of p) > 0 then set out to out & (name of p) & linefeed\n'
+    + '    end try\n'
+    + '  end repeat\n'
+    + 'end tell\n'
+    + 'return out'], 20000);
+  if (r.erreur) return [];
+  return r.texte.split('\n').map((x) => x.trim()).filter(Boolean)
+    .map((nom) => ({ type: 'liste', nom }));
+}
+
+async function listerAlbums() {
+  const r = await osascript(['-e',
+    'tell application "Music" to set a to (album of every track of library playlist 1)\n'
+    + 'set u to {}\n'
+    + 'repeat with x in a\n'
+    + '  set v to x as text\n'
+    + '  if v is not "" and u does not contain v then set end of u to v\n'
+    + 'end repeat\n'
+    + 'set text item delimiters to linefeed\n'
+    + 'return u as text'], 30000);
+  if (r.erreur) return [];
+  return r.texte.split('\n').map((x) => x.trim()).filter(Boolean)
+    .map((nom) => ({ type: 'album', nom }));
+}
+
+function jouerItem(item) {
+  return osascript(['-e', 'tell application "Music" to ' + ordreDeLecture(item)], 8000)
+    .then((r) => !r.erreur);
+}
+
 function duree(secondes) {
   const s = Math.max(0, Math.floor(secondes || 0));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -156,6 +254,8 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     this.urlPochette = null;
     this.minuteur = null;
     this.pannesignalee = false;
+    this.cachePochettes = {};
+    if (!Array.isArray(this.reglages.etagere)) this.reglages.etagere = [];
 
     this.flottant = new PanneauFlottant(this);
 
@@ -172,6 +272,11 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
       id: 'ouvrir-flottant',
       name: 'Vinyle : afficher ou masquer le panneau flottant',
       callback: () => this.flottant.basculer(),
+    });
+    this.addCommand({
+      id: 'garnir-etagere',
+      name: "Vinyle : ajouter un disque à l'étagère",
+      callback: () => new SelecteurDisque(this.app, this).open(),
     });
     this.addCommand({
       id: 'lecture-pause',
@@ -308,10 +413,62 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
       : 'Vinyle : Music est injoignable. ' + message, refus ? 12000 : 6000);
   }
 
-  cheminPochette() {
-    const rel = this.app.vault.configDir + '/plugins/' + this.manifest.id + '/pochette.png';
+  cheminPochette(nom) {
+    const rel = this.app.vault.configDir + '/plugins/' + this.manifest.id
+      + '/pochettes/' + (nom || 'courante');
     const base = (this.app.vault.adapter && this.app.vault.adapter.basePath) || '';
     return { rel, abs: base ? path.join(base, rel) : null };
+  }
+
+  /* ------------------------------ Étagère ------------------------------ */
+
+  // Les pochettes de l'étagère sont conservées sur le disque et en mémoire :
+  // vingt disques à deux cents millisecondes l'extraction feraient quatre
+  // secondes d'attente à chaque ouverture du volet.
+  async pochetteEtagere(item) {
+    const cle = cleItem(item);
+    if (Object.prototype.hasOwnProperty.call(this.cachePochettes, cle)) return this.cachePochettes[cle];
+    const c = this.cheminPochette(cle);
+    if (!c.abs) return null;
+    if (!fs.existsSync(c.abs)) {
+      try { fs.mkdirSync(path.dirname(c.abs), { recursive: true }); } catch (e) { /* déjà là */ }
+      const ok = await extrairePochette(c.abs, specificateurDe(item));
+      if (!ok) { this.cachePochettes[cle] = null; return null; }
+      await reduire(c.abs, 240);
+    }
+    const u = urlDonnees(c.abs);
+    this.cachePochettes[cle] = u;
+    return u;
+  }
+
+  async ajouterEtagere(item) {
+    const cle = cleItem(item);
+    if (this.reglages.etagere.some((x) => cleItem(x) === cle)) {
+      new obsidian.Notice('Vinyle : « ' + item.nom + ' » est déjà sur l\'étagère.');
+      return;
+    }
+    this.reglages.etagere.push({ type: item.type, nom: item.nom });
+    await this.sauver();
+    await this.pochetteEtagere(item);
+    for (const platine of this.platines()) platine.rendreEtagere();
+  }
+
+  async retirerEtagere(item) {
+    const cle = cleItem(item);
+    this.reglages.etagere = this.reglages.etagere.filter((x) => cleItem(x) !== cle);
+    await this.sauver();
+    // On garde le fichier : le disque est bon marché, et le remettre sur
+    // l'étagère sera instantané.
+    for (const platine of this.platines()) platine.rendreEtagere();
+  }
+
+  async poserDisque(item) {
+    const ok = await jouerItem(item);
+    if (!ok) {
+      new obsidian.Notice('Vinyle : impossible de lancer « ' + item.nom + ' ».');
+      return;
+    }
+    await this.battre(true);
   }
 
   async rafraichirPochette(id) {
@@ -325,12 +482,7 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     // getResourcePath obligerait à déjouer le cache, le nom étant constant, et
     // rien ne garantit qu'un chemin sous .obsidian y soit servi. Une pochette
     // pèse environ un mégaoctet et n'est relue qu'au changement de piste.
-    try {
-      const octets = fs.readFileSync(c.abs);
-      this.urlPochette = 'data:image/png;base64,' + octets.toString('base64');
-    } catch (e) {
-      this.urlPochette = null;
-    }
+    this.urlPochette = urlDonnees(c.abs);
   }
 
   /* --- Rendu --- */
@@ -430,7 +582,10 @@ class Platine {
       + '</svg>';
     this.bras.setAttribute('aria-label', 'Bras de lecture : glissez pour vous déplacer dans le morceau');
 
-    this.disque = this.plateau.createDiv({ cls: 'vinyle-disque' });
+    // La translation d'échange vit sur le porteur, la rotation sur le disque :
+    // une seule transform par élément, sinon l'une écrase l'autre.
+    this.porteur = this.plateau.createDiv({ cls: 'vinyle-porte-disque' });
+    this.disque = this.porteur.createDiv({ cls: 'vinyle-disque' });
     this.pochette = this.disque.createDiv({ cls: 'vinyle-pochette' });
     this.etiquette = this.disque.createDiv({ cls: 'vinyle-etiquette' });
     this.trou = this.disque.createDiv({ cls: 'vinyle-trou' });
@@ -450,7 +605,12 @@ class Platine {
     this.jauge.createDiv({ cls: 'vinyle-jauge-remplie' });
     this.temps = this.zoneProgression.createDiv({ cls: 'vinyle-temps' });
 
+    this.etagere = c.createDiv({ cls: 'vinyle-etagere' });
+    this.rail = this.etagere.createDiv({ cls: 'vinyle-rail' });
+
     this.ecouter(this.bras, 'mousedown', (e) => this.saisirBras(e));
+    this.installerDepot();
+    this.rendreEtagere();
 
     this.appliquerOptions();
     this.peindre(this.greffon.piste, this.greffon.urlPochette);
@@ -470,6 +630,8 @@ class Platine {
   }
 
   demonter() {
+    if (this.minuteurEchange) window.clearTimeout(this.minuteurEchange);
+    if (this.minuteurFin) window.clearTimeout(this.minuteurFin);
     if (this.observateur) { this.observateur.disconnect(); this.observateur = null; }
     for (const [cible, type, fn] of this.evenements) cible.removeEventListener(type, fn);
     this.evenements = [];
@@ -490,6 +652,9 @@ class Platine {
 
   appliquerOptions() {
     if (!this.bras) return;
+    if (this.etagere) {
+      this.etagere.toggleClass('vinyle-invisible', this.greffon.reglages.montrerEtagere === false);
+    }
     this.bras.toggleClass('vinyle-invisible', !this.greffon.reglages.montrerBras);
     this.zoneProgression.toggleClass('vinyle-invisible', !this.greffon.reglages.montrerProgression);
     this.tailleAppliquee = null; // forcer un recalcul après changement d'option
@@ -515,11 +680,23 @@ class Platine {
       const cotes = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const ecart = parseFloat(style.rowGap) || 0;
 
+      // Cadre plus large que haut : l'étagère se range à droite du plateau,
+      // sinon elle passe dessous. On ne bascule la classe que si elle change,
+      // sans quoi la bascule relancerait l'observateur.
+      const large = el.clientWidth > el.clientHeight * 1.15;
+      if (this.enLarge !== large) { this.enLarge = large; el.toggleClass('vinyle-large', large); }
+
+      const visible = (x) => x && x.offsetParent !== null;
       let occupe = marges;
       for (const enfant of [this.infos, this.zoneProgression]) {
-        if (enfant && enfant.offsetParent !== null) occupe += enfant.offsetHeight + ecart;
+        if (visible(enfant)) occupe += enfant.offsetHeight + ecart;
       }
-      t = Math.min(r.tailleMax || 460, el.clientWidth - cotes, el.clientHeight - occupe);
+      let largeurPrise = cotes;
+      if (visible(this.etagere)) {
+        if (large) largeurPrise += this.etagere.offsetWidth + ecart;
+        else occupe += this.etagere.offsetHeight + ecart;
+      }
+      t = Math.min(r.tailleMax || 460, el.clientWidth - largeurPrise, el.clientHeight - occupe);
     }
 
     t = Math.round(Math.max(120, Math.min(900, t)));
@@ -527,6 +704,111 @@ class Platine {
     if (this.tailleAppliquee != null && Math.abs(this.tailleAppliquee - t) < 2) return;
     this.tailleAppliquee = t;
     el.style.setProperty('--vinyle-taille', t + 'px');
+  }
+
+  /* ----------------------------- L'étagère ----------------------------- */
+
+  rendreEtagere() {
+    if (!this.rail) return;
+    const g = this.greffon;
+    const liste = g.reglages.etagere || [];
+    this.etagere.toggleClass('vinyle-invisible', g.reglages.montrerEtagere === false);
+    this.rail.empty();
+
+    for (const item of liste) {
+      const d = this.rail.createDiv({ cls: 'vinyle-pochette-etagere' });
+      d.setAttribute('draggable', 'true');
+      d.setAttribute('aria-label', (item.type === 'liste' ? 'Liste' : 'Album') + ' : ' + item.nom);
+      const rond = d.createDiv({ cls: 'vinyle-rondelle' });
+      d.createDiv({ cls: 'vinyle-etiquette-etagere', text: item.nom });
+
+      // La pochette peut n'être pas encore extraite : on pose le disque tout de
+      // suite et on l'habille dès qu'elle arrive, plutôt que de bloquer.
+      g.pochetteEtagere(item).then((url) => {
+        if (url && rond.isConnected) rond.style.backgroundImage = 'url("' + url + '")';
+      });
+
+      this.ecouter(d, 'dragstart', (e) => {
+        this.itemGlisse = item;
+        d.addClass('vinyle-enleve');
+        this.plateau.addClass('vinyle-recoit');
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('text/plain', 'vinyle:' + cleItem(item));
+          e.dataTransfer.effectAllowed = 'copy';
+        }
+      });
+      this.ecouter(d, 'dragend', () => {
+        this.itemGlisse = null;
+        d.removeClass('vinyle-enleve');
+        this.plateau.removeClass('vinyle-recoit');
+        this.plateau.removeClass('vinyle-survol');
+      });
+      this.ecouter(d, 'dblclick', () => g.poserDisque(item));
+      this.ecouter(d, 'contextmenu', (e) => {
+        e.preventDefault();
+        const menu = new obsidian.Menu();
+        menu.addItem((m) => m.setTitle('Poser sur la platine').setIcon('play')
+          .onClick(() => g.poserDisque(item)));
+        menu.addItem((m) => m.setTitle("Retirer de l'étagère").setIcon('trash-2')
+          .onClick(() => g.retirerEtagere(item)));
+        menu.showAtMouseEvent(e);
+      });
+    }
+
+    const plus = this.rail.createDiv({ cls: 'vinyle-pochette-etagere vinyle-ajouter' });
+    plus.setAttribute('aria-label', "Ajouter un disque à l'étagère");
+    const rondPlus = plus.createDiv({ cls: 'vinyle-rondelle' });
+    obsidian.setIcon(rondPlus, 'plus');
+    this.ecouter(plus, 'click', () => new SelecteurDisque(this.greffon.app, this.greffon).open());
+    if (!liste.length) this.rail.createDiv({ cls: 'vinyle-etagere-vide', text: 'Étagère vide' });
+
+    this.tailleAppliquee = null;
+    this.ajusterTaille();
+  }
+
+  installerDepot() {
+    this.ecouter(this.plateau, 'dragover', (e) => {
+      if (!this.itemGlisse) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      this.plateau.addClass('vinyle-survol');
+    });
+    this.ecouter(this.plateau, 'dragleave', () => this.plateau.removeClass('vinyle-survol'));
+    this.ecouter(this.plateau, 'drop', (e) => {
+      const item = this.itemGlisse;
+      this.plateau.removeClass('vinyle-survol');
+      this.plateau.removeClass('vinyle-recoit');
+      if (!item) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.greffon.poserDisque(item);
+    });
+  }
+
+  /* --------------------------- Changer de disque ------------------------ */
+
+  poserPochette(url) {
+    if (url) {
+      this.pochette.style.backgroundImage = 'url("' + url + '")';
+      this.pochette.removeClass('vinyle-sans-pochette');
+    } else {
+      this.pochette.style.backgroundImage = '';
+      this.pochette.addClass('vinyle-sans-pochette');
+    }
+  }
+
+  // Le disque sortant glisse vers la gauche, le suivant entre par la droite,
+  // côté étagère. La pochette est remplacée au creux du mouvement, quand rien
+  // n'est visible, ce qui évite tout clignotement.
+  echangerDisque(url) {
+    if (this.minuteurEchange) window.clearTimeout(this.minuteurEchange);
+    if (this.minuteurFin) window.clearTimeout(this.minuteurFin);
+    this.porteur.removeClass('vinyle-echange');
+    // Forcer un reflux, sans quoi rejouer la même animation ne repart pas.
+    void this.porteur.offsetWidth;
+    this.porteur.addClass('vinyle-echange');
+    this.minuteurEchange = window.setTimeout(() => this.poserPochette(url), 380);
+    this.minuteurFin = window.setTimeout(() => this.porteur.removeClass('vinyle-echange'), 800);
   }
 
   /* ------------------------------ Le bras ------------------------------ */
@@ -616,13 +898,12 @@ class Platine {
     this.disque.toggleClass('vinyle-tourne', joue);
     this.plateau.toggleClass('vinyle-actif', enPiste);
 
-    if (urlPochette) {
-      this.pochette.style.backgroundImage = 'url("' + urlPochette + '")';
-      this.pochette.removeClass('vinyle-sans-pochette');
-    } else {
-      this.pochette.style.backgroundImage = '';
-      this.pochette.addClass('vinyle-sans-pochette');
-    }
+    // Changement de piste : le disque s'échange tout seul. Au premier rendu
+    // il n'y a rien à remplacer, on pose directement.
+    const id = (piste && piste.id) || null;
+    if (this.idAffiche !== undefined && id && id !== this.idAffiche) this.echangerDisque(urlPochette);
+    else this.poserPochette(urlPochette);
+    this.idAffiche = id;
 
     obsidian.setIcon(this.btnJouer, joue ? 'pause' : 'play');
 
@@ -696,8 +977,10 @@ class PanneauFlottant {
 
     const el = document.createElement('div');
     el.className = 'vinyle-flottant';
-    el.style.width = Math.max(220, pos.largeur || 320) + 'px';
-    el.style.height = Math.max(240, pos.hauteur || 420) + 'px';
+    // L'étagère occupe une bande sous le plateau : ouvrir trop petit donnerait
+    // un disque riquiqui dès la première fois.
+    el.style.width = Math.max(220, pos.largeur || 360) + 'px';
+    el.style.height = Math.max(240, pos.hauteur || 580) + 'px';
     if (pos.gauche != null && pos.haut != null) {
       el.style.left = pos.gauche + 'px';
       el.style.top = pos.haut + 'px';
@@ -790,6 +1073,43 @@ class PanneauFlottant {
 }
 
 /* =========================================================================
+ * Choisir un disque à poser sur l'étagère
+ * ========================================================================= */
+
+class SelecteurDisque extends obsidian.FuzzySuggestModal {
+  constructor(app, greffon) {
+    super(app);
+    this.greffon = greffon;
+    this.entrees = [];
+    this.setPlaceholder('Chargement de votre bibliothèque…');
+    this.setInstructions([{ command: '↵', purpose: "ajouter à l'étagère" }]);
+  }
+
+  async onOpen() {
+    super.onOpen();
+    // Les albums arrivent vite, les listes demandent une seconde : on affiche
+    // ce qui est prêt plutôt que de faire attendre devant une fenêtre vide.
+    const [listes, albums] = await Promise.all([listerListes(), listerAlbums()]);
+    this.entrees = listes.concat(albums);
+    this.setPlaceholder(this.entrees.length
+      ? 'Chercher parmi ' + listes.length + ' listes et ' + albums.length + ' albums…'
+      : 'Music est injoignable.');
+    // Forcer le recalcul de la liste maintenant que les données sont là.
+    if (this.inputEl) this.inputEl.dispatchEvent(new Event('input'));
+  }
+
+  getItems() { return this.entrees; }
+
+  getItemText(item) {
+    return (item.type === 'liste' ? 'Liste · ' : 'Album · ') + item.nom;
+  }
+
+  onChooseItem(item) {
+    this.greffon.ajouterEtagere(item);
+  }
+}
+
+/* =========================================================================
  * Réglages
  * ========================================================================= */
 
@@ -844,6 +1164,24 @@ class OngletVinyle extends obsidian.PluginSettingTab {
       .setName('Montrer la progression')
       .addToggle((t) => t.setValue(g.reglages.montrerProgression)
         .onChange(async (v) => { g.reglages.montrerProgression = v; await maj(); }));
+
+    new obsidian.Setting(c).setName("L'étagère").setHeading();
+
+    new obsidian.Setting(c)
+      .setName("Montrer l'étagère")
+      .setDesc("Vos listes et albums, en disques, à côté de la platine. Glissez-en un sur le plateau pour le lancer, double-cliquez pour le même effet, clic droit pour le retirer.")
+      .addToggle((t) => t.setValue(g.reglages.montrerEtagere !== false)
+        .onChange(async (v) => {
+          g.reglages.montrerEtagere = v;
+          await maj();
+          for (const platine of g.platines()) platine.rendreEtagere();
+        }));
+
+    new obsidian.Setting(c)
+      .setName('Garnir')
+      .setDesc((g.reglages.etagere || []).length + ' disque(s) sur l\'étagère.')
+      .addButton((b) => b.setButtonText('Ajouter un disque').setCta()
+        .onClick(() => new SelecteurDisque(this.app, g).open()));
 
     new obsidian.Setting(c).setName('Ouverture').setHeading();
 

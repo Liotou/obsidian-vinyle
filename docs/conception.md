@@ -139,6 +139,49 @@ mais n'accepte qu'un point dans le script qu'on lui soumet : `set player
 position to 73,786` est une erreur de syntaxe. L'échec était silencieux.
 `toFixed` produit toujours un point, quel que soit le système.
 
+## L'étagère
+
+**Ce qui n'est pas possible.** Apple Music n'expose aucune file d'attente en
+AppleScript : le dictionnaire ne donne que `current playlist`, `next track` et
+les modes de lecture. Trois voies ont été essayées et fermées. `current
+playlist` échoue quand la lecture vient d'un album en flux. L'`index of current
+track` ne correspond à aucune liste adressable : la piste d'index 34 en lecture
+n'est pas la piste 34 de `library playlist 1`. Et une piste en flux n'est pas
+dans la bibliothèque locale, donc la chercher par album rend zéro résultat. Les
+morceaux « suivants » au sens de la file d'Apple Music sont donc illisibles.
+
+**Ce qui l'est.** Les listes de lecture et les albums de la bibliothèque, avec
+la pochette de leur première piste. Mesuré : 63 listes non vides en 1,2 s, 785
+albums distincts en 384 ms, une pochette en 200 ms, réduite de 104 Ko à 21 Ko en
+21 ms par `sips`, livré avec macOS.
+
+L'étagère contient donc ce que l'utilisateur y range, choisi dans un sélecteur
+flou. Les pochettes sont conservées sur disque et en mémoire : vingt disques à
+deux cents millisecondes feraient quatre secondes d'attente à chaque ouverture.
+Un disque se glisse sur le plateau, se double-clique, ou se retire au clic droit.
+
+L'étagère se dresse en colonne à droite du plateau quand le cadre est plus large
+que haut, et passe en bande dessous sinon. Le calcul de taille en tient compte,
+dans les deux sens.
+
+## Les animations
+
+L'échange de disque vit sur un **porteur** distinct : la translation est sur le
+porteur, la rotation sur le disque qu'il contient. Une seule `transform` par
+élément, faute de quoi l'une écrase l'autre.
+
+Le disque sortant part vers la gauche en rapetissant, le suivant entre par la
+droite, du côté de l'étagère. La pochette est remplacée à 380 ms, au creux du
+mouvement, quand l'opacité est nulle : aucun clignotement. Rejouer l'animation
+exige de retirer la classe, forcer un reflux, puis la remettre, sans quoi une
+seconde piste enchaînée ne relancerait rien.
+
+L'échange se déclenche seul au changement de piste, détecté par l'identifiant
+persistant, et pas au premier rendu, où il n'y a rien à remplacer.
+
+`prefers-reduced-motion` réduit l'échange à une milliseconde et coupe le
+défilement doux.
+
 ## Quand cela rate
 
 | Situation | Comportement |
