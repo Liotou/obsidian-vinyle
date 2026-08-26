@@ -1,8 +1,7 @@
 # Vinyle
 
 > 🤖 **Written by vibe coding with Claude.** This plugin was designed and written
-> in conversation with Claude (Anthropic), from the real needs of a doctoral
-> student. I am not a developer. I describe what I need, I test, I correct, and
+> in conversation with Claude (Anthropic). I am not a developer. I describe what I need, I test, I correct, and
 > the code takes shape through the exchange. I say this up front, out of
 > honesty, so you know what you are installing. The code is readable, commented,
 > and has no dependency: a single `main.js` file, no TypeScript, no bundler, no
