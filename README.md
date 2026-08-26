@@ -16,6 +16,8 @@ playing spins on a record, in a movable pane, in a floating panel, or in the
 status bar. The tonearm is not decoration: it advances through the track, you
 grab it to seek, you lift it to pause.
 
+![Vinyle in an Obsidian pane](docs/vinyle.jpg)
+
 🍏 **macOS only, and Apple Music only.** Everything goes through AppleScript. No
 API key, no network, no account, no developer certificate. The plugin asks
 Music.app what it is playing, and Music.app answers.
@@ -124,8 +126,9 @@ its sleeve settles onto it as Music hands it over, starting with what is in
 view.
 
 **A record on the platter is no longer in the crate.** Its slot stays where it
-was, empty, and fills back in when the music moves on or when you put the record
-away. The empty slot follows what Music is *actually* playing, not what you
+was, hollow, and fills back in when the music moves on or when you put the
+record away. **Click the empty slot and the record comes back to it**, which
+stops playback. The empty slot follows what Music is *actually* playing, not what you
 clicked, so it keeps up even when a playlist rolls on by itself.
 
 The records fall into place one after another, each landing with a small squash.

@@ -1478,7 +1478,25 @@ class Platine {
   clicGalerie(e) {
     const c = e.target && e.target.closest ? e.target.closest('.vinyle-galette') : null;
     if (!c || !c.__piste || !this.itemOuvert) return;
+    // Cliquer l'emplacement vide, c'est reprendre son disque : il quitte la
+    // platine, revient à sa place, et la lecture s'arrête.
+    if (c.classList.contains('vinyle-sur-platine')) { this.reprendreDisque(c); return; }
     this.choisirPiste(this.itemOuvert, c.__piste, c);
+  }
+
+  async reprendreDisque(caisse) {
+    if (this.volEnCours) return;
+    const arrivee = caisse.querySelector('.vinyle-galette-disque');
+    if (arrivee) {
+      this.voler(this.plateau.getBoundingClientRect(), arrivee.getBoundingClientRect(),
+        this.pochette ? this.pochette.style.backgroundImage : '');
+    }
+    // L'arrêt attend que le disque soit arrivé. Commander tout de suite ferait
+    // reboucher l'emplacement avant que rien n'y soit revenu, et le disque
+    // volant se poserait sur un trou déjà comblé.
+    await new Promise((r) => window.setTimeout(r, 360));
+    await commander('arret');
+    await this.greffon.battre(true);
   }
 
   async choisirPiste(item, piste, caisse) {

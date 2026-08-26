@@ -212,6 +212,13 @@ même interrogation les donne tous les deux, sans coût mesurable : toujours
 229 ms pour 933 pistes. Le parcours des cases n'a lieu qu'au changement de
 piste, jamais à chaque battement.
 
+L'emplacement vide est un creux, dessiné par une ombre intérieure plutôt que par
+un simple contour : un casier dont on a retiré le disque. Le cliquer reprend ce
+disque, qui quitte la platine et revient à sa place, la lecture s'arrêtant. Le
+`stop` attend trois cent soixante millisecondes, le temps du vol : commander
+tout de suite reboucherait l'emplacement avant que rien n'y soit revenu, et le
+disque volant se poserait sur un trou déjà comblé.
+
 ## La chorégraphie du tiroir
 
 Trois temps qui se chevauchent à l'ouverture. Le plateau descend à environ deux

@@ -755,9 +755,13 @@
    garde sa place pour que la galerie ne se réorganise pas sous les yeux. */
 .vinyle-galette.vinyle-sur-platine .vinyle-galette-disque {
   background: none;
-  box-shadow: none;
+  /* Un creux, et non un simple contour : l'ombre intérieure donne à
+     l'emplacement la profondeur d'un casier dont on a retiré le disque. */
+  box-shadow:
+    inset 0 3px 9px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.05);
   border: 1px dashed var(--background-modifier-border);
-  transition: opacity 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .vinyle-galette.vinyle-sur-platine .vinyle-galette-image,
@@ -767,9 +771,13 @@
    manque à l'appel. */
 .vinyle-galette.vinyle-sur-platine .vinyle-galette-texte { opacity: 0.45; }
 
+/* Au survol, l'emplacement s'offre : cliquer dessus reprend le disque. */
 .vinyle-galette.vinyle-sur-platine:hover .vinyle-galette-disque {
   transform: none;
   border-color: var(--interactive-accent);
+  box-shadow:
+    inset 0 3px 9px rgba(0, 0, 0, 0.55),
+    0 0 0 3px var(--background-modifier-hover);
 }
 
 /* ---------- La chute ----------

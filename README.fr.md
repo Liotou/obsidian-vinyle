@@ -17,6 +17,8 @@ ou dans la barre d'état. Le bras n'est pas décoratif : il avance au fil du
 morceau, on le saisit pour se déplacer dedans, on le relève pour mettre en
 pause.
 
+![Vinyle dans un volet d'Obsidian](docs/vinyle.jpg)
+
 🍏 **macOS uniquement, et Apple Music uniquement.** Tout passe par AppleScript.
 Pas de clé API, pas de réseau, pas de compte, pas de certificat de développeur.
 Le greffon demande à Music.app ce qu'il joue, et Music.app répond.
@@ -129,8 +131,9 @@ en bloc : chaque disque paraît nu, et sa pochette vient s'y poser à mesure que
 Music la rend, en commençant par ce qui est sous vos yeux.
 
 **Un disque posé sur la platine n'est plus dans le bac.** Son emplacement
-demeure, vide, et se rebouche quand la musique change ou quand vous rangez le
-disque. Le trou suit ce que Music joue vraiment, et non ce que vous avez
+demeure, creux, et se rebouche quand la musique change ou quand vous rangez le
+disque. **Cliquez sur l'emplacement vide et le disque y revient**, ce qui arrête
+la lecture. Le trou suit ce que Music joue vraiment, et non ce que vous avez
 cliqué : il reste donc juste même quand une liste s'enchaîne toute seule.
 
 Les disques tombent les uns après les autres, chacun s'écrasant légèrement à
