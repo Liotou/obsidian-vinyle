@@ -300,10 +300,24 @@ et on ne le remonte qu'ensuite. Cela suppose que la jaquette le soit vraiment : 
 couleur de bordure du thème, souvent translucide, et il a fallu la poser sur le
 fond primaire avec la teinte de bordure passée en liseré intérieur.
 
-**Ranger arrête, le bras suspend.** Le bras relevé met en pause et reposé
-reprend ; ranger le disque appelle `stop`, remet le morceau à zéro et éteint le
-plateau. Deux gestes, deux sens. Leur donner le même effet aurait fait deux
-chemins pour une seule chose.
+**Trois gestes, trois sens.** Le bouton met en pause, le bras relevé rend muet,
+ranger le disque arrête. Le bras coupait d'abord la lecture, ce qui faisait
+double emploi avec le bouton ; le rendre muet est à la fois plus juste et plus
+fidèle, un plateau continuant de tourner quand le saphir le quitte. Reposer le
+bras rend donc le son là où le sillon est passé, et non là où on l'a levé.
+
+Trois conséquences. Le plateau s'assombrit pendant le silence, comme lorsque
+rien ne joue, sans cesser de tourner. Le bras doit être forcé à rester levé :
+la lecture continuant, il redescendrait tout seul en quelques battements et
+contredirait le geste. Et l'état muet est lu dans l'interrogation, ce qui relève
+le bras de lui-même quand le son est coupé depuis Music.
+
+Le greffon rend le son au déchargement, mais seulement s'il l'a lui-même coupé :
+quitter Obsidian le bras levé laisserait sinon Music muet, et l'on chercherait
+longtemps pourquoi. Défaire un silence demandé dans Music serait à l'inverse
+s'arroger le réglage de l'utilisateur.
+
+Ranger le disque appelle `stop`, remet le morceau à zéro et éteint le plateau.
 
 La saisie du bras arrête la propagation de son `mousedown`, ce qui empêche le
 glissement de démarrer : les deux gestes cohabitent sur le même disque sans se

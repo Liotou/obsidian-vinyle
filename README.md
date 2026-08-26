@@ -84,9 +84,16 @@ it**. Its angle is your position in the track: drag it inwards to go forward,
 outwards to go back. The time shown tells you where you will land, and nothing
 is sent to Music until you let go.
 
-Lift it clear of the record and playback **pauses**. Put it back down on a
-stopped record and playback **resumes**. It is the gesture of a real turntable,
-not a metaphor bolted on afterwards.
+Lift it clear of the record and **the sound cuts out** — the platter keeps
+turning, dimmed, exactly as a real one does when the stylus leaves the groove.
+Set it back down and the sound returns, at the point the groove has reached
+under it, because the record never stopped. It is the gesture of a real
+turntable, not a metaphor bolted on afterwards.
+
+Three gestures, three meanings, and no two doing the same thing: the **button**
+pauses, the **raised arm** mutes, **putting the record away** stops. If you quit
+with the arm up, the plugin unmutes Music on its way out — but only if it was
+the one that muted it.
 
 The travel stops well before the label, at 18 % of the radius, as it would on a
 real record.

@@ -294,7 +294,7 @@ tell application "Music"
   end try
   return e & tab & (persistent ID of p) & tab & (name of p) & tab & ¬
     (artist of p) & tab & (album of p) & tab & (player position as text) & tab & ¬
-    (duration of p as text) & tab & pochette
+    (duration of p as text) & tab & pochette & tab & (mute as text)
 end tell
 `;
 
@@ -330,7 +330,7 @@ async function lireEtat() {
   const t = r.texte;
   if (t === 'absent' || t === 'arret' || !t) return { etat: t === 'absent' ? 'absent' : 'arret' };
   const c = t.split('\t');
-  if (c.length < 8) return { etat: 'arret' };
+  if (c.length < 9) return { etat: 'arret' };
   return {
     etat: c[0] === 'playing' ? 'lecture' : 'pause',
     id: c[1],
@@ -340,6 +340,10 @@ async function lireEtat() {
     position: nombreLocal(c[5]),
     duree: nombreLocal(c[6]),
     pochette: c[7] === '1',
+    // Le bras relevé coupe le son sans arrêter le disque : il faut donc savoir
+    // si Music est muet, y compris quand c'est l'utilisateur qui l'a fait
+    // depuis Music, pour que le bras s'en trouve relevé de lui-même.
+    muet: c[8] === 'true',
   };
 }
 
@@ -414,6 +418,14 @@ function commander(ordre) {
 // n'accepte qu'un point dans le script qu'on lui soumet : une virgule y est une
 // erreur de syntaxe. L'asymétrie est silencieuse, le déplacement échouait sans
 // rien dire. toFixed produit toujours un point, quel que soit le système.
+// Le greffon ne rétablit que le silence qu'il a lui-même posé : défaire celui
+// que l'utilisateur a demandé dans Music serait s'arroger son réglage.
+function rendreMuet(muet) {
+  return osascript(['-e',
+    'tell application "Music" to set mute to ' + (muet ? 'true' : 'false')], 4000)
+    .then((r) => !r.erreur);
+}
+
 function positionner(secondes) {
   const v = Math.max(0, Number(secondes) || 0).toFixed(3);
   return osascript(['-e', 'tell application "Music" to set player position to ' + v], 4000)
@@ -570,6 +582,7 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     this.urlPochette = null;
     this.minuteur = null;
     this.pannesignalee = false;
+    this.muetParNous = false;   // le silence est-il de notre fait ?
     this.cachePochettes = {};
     this.cachePistes = {};     // pistes par disque, une interrogation suffit
     this.attente = [];         // file des pochettes à tirer, un seul fil
@@ -624,6 +637,9 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
     if (this.minuteur) window.clearTimeout(this.minuteur);
     this.minuteur = null;
     if (this.bruiteur) this.bruiteur.fermer();
+    // Sans cela, quitter Obsidian le bras levé laisserait Music muet, et l'on
+    // chercherait longtemps pourquoi le son ne revient pas.
+    if (this.muetParNous) { this.muetParNous = false; rendreMuet(false); }
     // Un panneau en position fixe survivrait au déchargement s'il n'était pas
     // retiré ici : il est posé sur document.body, pas sur un conteneur géré.
     if (this.flottant) this.flottant.fermer();
@@ -1824,7 +1840,7 @@ class Platine {
     const piste = this.greffon.piste;
     const total = (piste && piste.duree) || 0;
     if (angle < BRAS_SEUIL_POSE) {
-      this.temps.setText('Relâcher pour mettre en pause');
+      this.temps.setText('Relâcher pour couper le son');
       return;
     }
     const cible = progressionDeAngle(angle) * total;
@@ -1838,15 +1854,22 @@ class Platine {
     if (!piste || !piste.titre) return;
 
     if (angle < BRAS_SEUIL_POSE) {
-      // Bras relevé hors du disque : on arrête, comme on lèverait le saphir.
-      await commander('pause');
+      // Bras relevé hors du disque : le saphir ne lit plus, mais le plateau
+      // continue de tourner. On coupe donc le son sans arrêter la lecture, ce
+      // qui laisse au bouton la pause et au rangement du disque l'arrêt.
+      await rendreMuet(true);
+      this.greffon.muetParNous = true;
       await this.greffon.battre(true);
       return;
     }
+    // Reposer le saphir rend le son, et le repose là où le sillon est passé
+    // sous lui : le disque a continué de tourner pendant le silence.
+    if (this.greffon.muetParNous || piste.muet) {
+      await rendreMuet(false);
+      this.greffon.muetParNous = false;
+    }
     const total = piste.duree || 0;
     if (total > 0) await positionner(progressionDeAngle(angle) * total);
-    // Reposer le bras sur un disque à l'arrêt relance la lecture : c'est le
-    // geste inverse de celui qui l'a mis en pause.
     if (piste.etat !== 'lecture') await commander('jouer');
     await this.greffon.battre(true);
   }
@@ -1856,8 +1879,10 @@ class Platine {
     const joue = !!(piste && piste.etat === 'lecture');
     const enPiste = !!(piste && piste.titre);
 
+    const muet = !!(piste && piste.muet);
     this.disque.toggleClass('vinyle-tourne', joue);
     this.plateau.toggleClass('vinyle-actif', enPiste);
+    this.plateau.toggleClass('vinyle-muet', muet && enPiste);
 
     // Changement de piste : le disque s'échange tout seul. Au premier rendu
     // il n'y a rien à remplacer, on pose directement.
@@ -1888,7 +1913,9 @@ class Platine {
       if (remplie) remplie.style.width = part.toFixed(2) + '%';
       this.temps.setText(enPiste ? duree(pos) + ' / ' + duree(total) : '');
       // Le bras avance vers le centre au fil du morceau, et se relève à l'arrêt.
-      this.poserBras(joue ? angleDeProgression(total > 0 ? pos / total : 0) : BRAS_LEVE);
+      // Muet, il reste levé quoi qu'il arrive : la lecture continue et il
+      // redescendrait tout seul, ce qui contredirait le geste qui l'a levé.
+      this.poserBras(joue && !muet ? angleDeProgression(total > 0 ? pos / total : 0) : BRAS_LEVE);
     }
     this.ajusterTaille();
   }

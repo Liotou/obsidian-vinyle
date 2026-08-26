@@ -87,9 +87,16 @@ Sa position angulaire est votre position dans le morceau : tirez-le vers
 l'intérieur pour avancer, vers l'extérieur pour revenir. Le temps affiché montre
 où vous tomberez, et rien n'est envoyé à Music tant que vous n'avez pas lâché.
 
-Relevé hors du disque, il **met en pause**. Reposé sur un disque à l'arrêt, il
-**relance la lecture**. C'est le geste du tourne-disque, pas une métaphore
-ajoutée après coup.
+Relevé hors du disque, **le son se coupe** : le plateau continue de tourner,
+assombri, exactement comme un vrai quand le saphir quitte le sillon. Reposez-le
+et le son revient, là où le sillon est passé sous lui, puisque le disque ne
+s'est jamais arrêté. C'est le geste du tourne-disque, pas une métaphore ajoutée
+après coup.
+
+Trois gestes, trois sens, et aucun ne fait double emploi : le **bouton** met en
+pause, le **bras relevé** rend muet, **ranger le disque** arrête. Si vous quittez
+le bras levé, le greffon rend le son à Music en partant, mais seulement s'il
+était lui-même l'auteur du silence.
 
 La course s'arrête bien avant l'étiquette, à 18 % du rayon, comme sur un disque
 réel.

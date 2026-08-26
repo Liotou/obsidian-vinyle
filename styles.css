@@ -946,3 +946,7 @@
   .vinyle-porte-disque.vinyle-pose,
   .vinyle-plateau.vinyle-pose { animation-duration: 1ms; }
 }
+
+/* Bras relevé : le saphir ne lit plus, mais le plateau tourne encore. Le disque
+   s'assombrit comme lorsque rien ne joue, sans cesser de tourner. */
+.vinyle-plateau.vinyle-muet { opacity: 0.45; filter: saturate(0.4); }
