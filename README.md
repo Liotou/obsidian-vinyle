@@ -16,7 +16,7 @@ playing spins on a record, in a movable pane, in a floating panel, or in the
 status bar. The tonearm is not decoration: it advances through the track, you
 grab it to seek, you lift it to pause.
 
-![Vinyle in an Obsidian pane](docs/vinyle.jpg)
+![Vinyle in an Obsidian pane](docs/vinyle.gif)
 
 🍏 **macOS only, and Apple Music only.** Everything goes through AppleScript. No
 API key, no network, no account, no developer certificate. The plugin asks

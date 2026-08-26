@@ -17,7 +17,7 @@ ou dans la barre d'état. Le bras n'est pas décoratif : il avance au fil du
 morceau, on le saisit pour se déplacer dedans, on le relève pour mettre en
 pause.
 
-![Vinyle dans un volet d'Obsidian](docs/vinyle.jpg)
+![Vinyle dans un volet d'Obsidian](docs/vinyle.gif)
 
 🍏 **macOS uniquement, et Apple Music uniquement.** Tout passe par AppleScript.
 Pas de clé API, pas de réseau, pas de compte, pas de certificat de développeur.
