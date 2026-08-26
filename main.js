@@ -122,12 +122,24 @@ return "ok"
 function commander(ordre) {
   const verbes = {
     lecture: 'playpause',
+    jouer: 'play',
+    pause: 'pause',
     suivant: 'next track',
     precedent: 'previous track',
   };
   const v = verbes[ordre];
   if (!v) return Promise.resolve(false);
   return osascript(['-e', `tell application "Music" to ${v}`], 4000)
+    .then((r) => !r.erreur);
+}
+
+// Music renvoie ses nombres dans la langue du système, « 125,501998 », mais
+// n'accepte qu'un point dans le script qu'on lui soumet : une virgule y est une
+// erreur de syntaxe. L'asymétrie est silencieuse, le déplacement échouait sans
+// rien dire. toFixed produit toujours un point, quel que soit le système.
+function positionner(secondes) {
+  const v = Math.max(0, Number(secondes) || 0).toFixed(3);
+  return osascript(['-e', 'tell application "Music" to set player position to ' + v], 4000)
     .then((r) => !r.erreur);
 }
 
@@ -353,6 +365,32 @@ module.exports = class GreffonVinyle extends obsidian.Plugin {
   }
 };
 
+/* -------------------------------------------------------------------------
+ * Géométrie du bras.
+ *
+ * Les angles sont ceux de la course réelle du saphir sur le disque : levé,
+ * hors du plateau ; début, sur le bord extérieur ; fin, près de l'étiquette.
+ * Le pivot est exprimé en fraction du côté du plateau et découle des valeurs
+ * de « .vinyle-bras » dans styles.css (top, right, width, transform-origin) :
+ * toucher à l'une sans l'autre décalerait la prise du bras.
+ * ------------------------------------------------------------------------- */
+
+const BRAS_LEVE = -26;
+const BRAS_DEBUT = 2;
+const BRAS_FIN = 24;
+const BRAS_SEUIL_POSE = -3;   // en deçà, le bras est considéré comme relevé
+const BRAS_PIVOT_X = 0.91;
+const BRAS_PIVOT_Y = 0.026;
+
+function angleDeProgression(part) {
+  const p = Math.max(0, Math.min(1, part || 0));
+  return BRAS_DEBUT + p * (BRAS_FIN - BRAS_DEBUT);
+}
+
+function progressionDeAngle(angle) {
+  return Math.max(0, Math.min(1, (angle - BRAS_DEBUT) / (BRAS_FIN - BRAS_DEBUT)));
+}
+
 /* =========================================================================
  * La platine : le rendu du disque, indépendant de son contenant
  *
@@ -386,7 +424,11 @@ class Platine {
       + '<circle cx="20" cy="14" r="11" class="vinyle-pivot"/>'
       + '<rect x="17" y="12" width="6" height="112" rx="3" class="vinyle-tige"/>'
       + '<rect x="12" y="120" width="16" height="22" rx="3" class="vinyle-cellule"/>'
+      // Zone de prise invisible : le bras dessiné est trop fin pour être
+      // attrapé confortablement à la souris.
+      + '<rect x="6" y="2" width="28" height="148" class="vinyle-prise"/>'
       + '</svg>';
+    this.bras.setAttribute('aria-label', 'Bras de lecture : glissez pour vous déplacer dans le morceau');
 
     this.disque = this.plateau.createDiv({ cls: 'vinyle-disque' });
     this.pochette = this.disque.createDiv({ cls: 'vinyle-pochette' });
@@ -407,6 +449,8 @@ class Platine {
     this.jauge = this.zoneProgression.createDiv({ cls: 'vinyle-jauge' });
     this.jauge.createDiv({ cls: 'vinyle-jauge-remplie' });
     this.temps = this.zoneProgression.createDiv({ cls: 'vinyle-temps' });
+
+    this.ecouter(this.bras, 'mousedown', (e) => this.saisirBras(e));
 
     this.appliquerOptions();
     this.peindre(this.greffon.piste, this.greffon.urlPochette);
@@ -485,6 +529,85 @@ class Platine {
     el.style.setProperty('--vinyle-taille', t + 'px');
   }
 
+  /* ------------------------------ Le bras ------------------------------ */
+
+  poserBras(angle) {
+    if (this.bras) this.bras.style.transform = 'rotate(' + angle.toFixed(2) + 'deg)';
+  }
+
+  // Angle du bras correspondant à la position du pointeur. Le pivot se déduit
+  // du plateau, seul élément dont la boîte n'est pas déformée par la rotation.
+  angleDepuisPointeur(e) {
+    const r = this.plateau.getBoundingClientRect();
+    const cote = r.width;
+    const vx = e.clientX - (r.left + BRAS_PIVOT_X * cote);
+    const vy = e.clientY - (r.top + BRAS_PIVOT_Y * cote);
+    if (vy <= 0) return BRAS_LEVE; // pointeur au-dessus du pivot : bras relevé
+    return Math.atan2(-vx, vy) * 180 / Math.PI;
+  }
+
+  saisirBras(e) {
+    const piste = this.greffon.piste;
+    if (!piste || !piste.titre) return; // rien à parcourir
+    e.preventDefault();
+    e.stopPropagation();
+
+    const doc = this.el.ownerDocument;
+    this.saisi = true;
+    this.angleSaisi = this.angleDepuisPointeur(e);
+    this.bras.addClass('vinyle-bras-saisi');
+    this.plateau.addClass('vinyle-parcours');
+
+    const bouger = (ev) => {
+      this.angleSaisi = Math.max(BRAS_LEVE, Math.min(BRAS_FIN, this.angleDepuisPointeur(ev)));
+      this.poserBras(this.angleSaisi);
+      this.montrerApercu(this.angleSaisi);
+    };
+    const lacher = async () => {
+      doc.removeEventListener('mousemove', bouger);
+      doc.removeEventListener('mouseup', lacher);
+      this.bras.removeClass('vinyle-bras-saisi');
+      this.plateau.removeClass('vinyle-parcours');
+      this.saisi = false;
+      await this.appliquerBras(this.angleSaisi);
+    };
+    doc.addEventListener('mousemove', bouger);
+    doc.addEventListener('mouseup', lacher);
+    bouger(e);
+  }
+
+  // Pendant le geste, on montre où l'on tomberait sans rien commander encore.
+  montrerApercu(angle) {
+    const piste = this.greffon.piste;
+    const total = (piste && piste.duree) || 0;
+    if (angle < BRAS_SEUIL_POSE) {
+      this.temps.setText('Relâcher pour mettre en pause');
+      return;
+    }
+    const cible = progressionDeAngle(angle) * total;
+    const remplie = this.jauge.firstElementChild;
+    if (remplie) remplie.style.width = (total > 0 ? (cible / total) * 100 : 0).toFixed(2) + '%';
+    this.temps.setText(duree(cible) + ' / ' + duree(total));
+  }
+
+  async appliquerBras(angle) {
+    const piste = this.greffon.piste;
+    if (!piste || !piste.titre) return;
+
+    if (angle < BRAS_SEUIL_POSE) {
+      // Bras relevé hors du disque : on arrête, comme on lèverait le saphir.
+      await commander('pause');
+      await this.greffon.battre(true);
+      return;
+    }
+    const total = piste.duree || 0;
+    if (total > 0) await positionner(progressionDeAngle(angle) * total);
+    // Reposer le bras sur un disque à l'arrêt relance la lecture : c'est le
+    // geste inverse de celui qui l'a mis en pause.
+    if (piste.etat !== 'lecture') await commander('jouer');
+    await this.greffon.battre(true);
+  }
+
   peindre(piste, urlPochette) {
     if (!this.plateau) return;
     const joue = !!(piste && piste.etat === 'lecture');
@@ -492,7 +615,6 @@ class Platine {
 
     this.disque.toggleClass('vinyle-tourne', joue);
     this.plateau.toggleClass('vinyle-actif', enPiste);
-    this.bras.toggleClass('vinyle-pose', joue);
 
     if (urlPochette) {
       this.pochette.style.backgroundImage = 'url("' + urlPochette + '")';
@@ -511,9 +633,15 @@ class Platine {
     const total = enPiste ? (piste.duree || 0) : 0;
     const pos = enPiste ? Math.min(piste.position || 0, total) : 0;
     const part = total > 0 ? (pos / total) * 100 : 0;
-    const remplie = this.jauge.firstElementChild;
-    if (remplie) remplie.style.width = part.toFixed(2) + '%';
-    this.temps.setText(enPiste ? duree(pos) + ' / ' + duree(total) : '');
+    // Pendant le geste, la main commande : ni le bras ni la jauge ne sont
+    // repeints, sans quoi le bras sauterait sous le doigt à chaque battement.
+    if (!this.saisi) {
+      const remplie = this.jauge.firstElementChild;
+      if (remplie) remplie.style.width = part.toFixed(2) + '%';
+      this.temps.setText(enPiste ? duree(pos) + ' / ' + duree(total) : '');
+      // Le bras avance vers le centre au fil du morceau, et se relève à l'arrêt.
+      this.poserBras(joue ? angleDeProgression(total > 0 ? pos / total : 0) : BRAS_LEVE);
+    }
     this.ajusterTaille();
   }
 }
@@ -579,7 +707,7 @@ class PanneauFlottant {
     }
 
     const entete = el.createDiv({ cls: 'vinyle-flottant-entete' });
-    entete.createSpan({ cls: 'vinyle-flottant-titre', text: 'Vinyle' });
+    entete.createSpan({ cls: 'vinyle-flottant-titre', text: 'Lecteur de disque' });
     const fermer = entete.createSpan({ cls: 'vinyle-flottant-fermer', text: '✕' });
     fermer.setAttribute('aria-label', 'Fermer');
     this.ecouter(fermer, 'click', () => this.fermer());

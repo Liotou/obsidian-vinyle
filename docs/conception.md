@@ -102,6 +102,43 @@ Les marges autour du disque sont en `clamp()`, donc proportionnelles au cadre :
 de 16 à 36 pixels sur les côtés. Mesuré, le disque garde de 36 à 40 pixels de
 jeu de chaque côté dans le panneau, contre 12 auparavant.
 
+## Le bras, organe de commande
+
+Le bras n'est pas décoratif. Il avance vers le centre au fil du morceau, et se
+saisit à la souris pour se déplacer dans la piste : sa position angulaire est la
+position dans le morceau. Relevé hors du disque, il met en pause ; reposé sur le
+disque à l'arrêt, il relance la lecture. C'est le geste du tourne-disque, pas une
+métaphore ajoutée après coup.
+
+Le pivot est situé en fraction du côté du plateau, `BRAS_PIVOT_X` et
+`BRAS_PIVOT_Y`, valeurs qui découlent du `top`, `right`, `width` et
+`transform-origin` de `.vinyle-bras` dans la feuille de style. Toucher à l'un
+sans l'autre décalerait la prise. L'angle se lit du pointeur par
+`atan2(-vx, vy)`, en partant du plateau, seul élément dont la boîte n'est pas
+déformée par la rotation.
+
+Course vérifiée par le calcul, le rayon étant rapporté au bord du disque :
+
+| Angle | Rayon | Où tombe le saphir |
+| --- | --- | --- |
+| −26° | 1,53 | hors du disque, bras levé |
+| −3° | 1,06 | juste au-delà du bord, seuil de pause |
+| 2° | 0,95 | vinyle nu, début du morceau |
+| 14° | 0,69 | vinyle nu, mi-parcours |
+| 24° | 0,48 | sur la pochette, fin du morceau |
+
+La course s'arrête bien avant l'étiquette, à 0,18, comme sur un disque réel.
+
+Pendant le geste, ni le bras ni la jauge ne sont repeints par le battement, sans
+quoi le bras sauterait sous le doigt toutes les deux secondes. Le temps affiché
+montre où l'on tombera, sans rien commander tant que la souris n'est pas
+relâchée.
+
+**Second piège de localisation.** Music renvoie ses nombres avec une virgule
+mais n'accepte qu'un point dans le script qu'on lui soumet : `set player
+position to 73,786` est une erreur de syntaxe. L'échec était silencieux.
+`toFixed` produit toujours un point, quel que soit le système.
+
 ## Quand cela rate
 
 | Situation | Comportement |
