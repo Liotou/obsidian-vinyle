@@ -8,9 +8,18 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  /* Le disque respirait mal : la marge est franche, et la latérale suit la
-     taille du cadre pour rester juste dans un panneau étroit comme large. */
-  padding: clamp(18px, 7%, 34px) clamp(16px, 8%, 36px) clamp(20px, 7%, 34px);
+  /* Le cadre n'a plus de marge latérale ni basse : le bac doit venir au ras des
+     bords. Ce sont les éléments qui en ont besoin qui la portent, et le disque
+     la reçoit par le calcul de taille. La marge est posée en pixels par le
+     JavaScript, seule façon d'avoir la même valeur des deux côtés : un clamp
+     en CSS ne se relit pas depuis le script. La valeur ci-dessous n'est qu'un
+     repli avant le premier calcul.
+
+     Un premier jet gardait le padding et sortait le bac par des marges
+     négatives : ce qui débordait à gauche passait sous le bord et devenait
+     inatteignable, le conteneur défilant. */
+  --vinyle-marge-lat: 16px;
+  padding: clamp(18px, 7%, 34px) 0 0;
   overflow-y: auto;
   /* La gouttière est réservée en permanence : sans cela, l'apparition d'une
      barre de défilement réduirait la largeur, donc le disque, donc la hauteur,
@@ -102,7 +111,15 @@
 
 /* Rien en cours : le plateau s'efface, sans disparaître. */
 .vinyle-plateau:not(.vinyle-actif) { opacity: 0.45; filter: saturate(0.4); }
-.vinyle-plateau { transition: opacity 0.4s ease, filter 0.4s ease; }
+/* Le disque rétrécit quand la galerie s'ouvre. Par width et height, et non par
+   scale : la transformation est déjà prise par la rotation. */
+.vinyle-plateau {
+  transition:
+    opacity 0.4s ease,
+    filter 0.4s ease,
+    width 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 @keyframes vinyle-rotation {
   from { transform: rotate(0deg); }
@@ -203,7 +220,8 @@
 .vinyle-commandes {
   flex: 0 0 auto;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
   padding: 4px;
   border-radius: 999px;
   background: var(--background-modifier-hover);
@@ -222,19 +240,43 @@
   color: var(--text-muted);
   cursor: pointer;
   box-shadow: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 
 .vinyle-bouton:hover {
   background: var(--background-modifier-border);
-  color: var(--text-normal);
+  color: var(--interactive-accent);
 }
+
+.vinyle-bouton:active { transform: scale(0.92); }
+
+/* Lecture et pause est le bouton qu'on cherche du regard : il porte la couleur
+   d'accent du thème, celle que l'utilisateur a choisie. */
+.vinyle-bouton-principal {
+  width: 38px;
+  height: 38px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.vinyle-bouton-principal:hover {
+  background: var(--interactive-accent-hover);
+  color: var(--text-on-accent);
+}
+
+.vinyle-bouton-principal .svg-icon { width: 19px; height: 19px; }
 .vinyle-bouton.vinyle-occupe { opacity: 0.45; pointer-events: none; }
 .vinyle-bouton .svg-icon { width: 17px; height: 17px; }
 
 /* ---------- Textes ---------- */
 
-.vinyle-infos { text-align: center; max-width: 100%; }
+.vinyle-infos {
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding-inline: var(--vinyle-marge-lat);
+}
 
 .vinyle-titre {
   font-weight: 600;
@@ -418,7 +460,9 @@
 .vinyle-vue.vinyle-large > .vinyle-commandes { order: 2; }
 .vinyle-vue.vinyle-large > .vinyle-infos { order: 3; }
 .vinyle-vue.vinyle-large > .vinyle-progression { order: 4; }
-.vinyle-vue.vinyle-large > .vinyle-etagere { order: 5; align-self: stretch; }
+.vinyle-vue.vinyle-large > .vinyle-bac { order: 5; align-self: stretch; width: 96px; }
+.vinyle-vue.vinyle-large > .vinyle-bac.vinyle-deploye { width: 190px; }
+.vinyle-vue.vinyle-large .vinyle-etagere { flex: 1 1 auto; min-height: 0; }
 .vinyle-vue.vinyle-large .vinyle-rail {
   flex-direction: column;
   height: 100%;
@@ -444,29 +488,38 @@
 .vinyle-pochette-etagere:active { cursor: grabbing; }
 .vinyle-pochette-etagere.vinyle-enleve { opacity: 0.35; transform: scale(0.9); }
 
-.vinyle-rondelle {
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
+.vinyle-jaquette {
+  width: 62px;
+  height: 62px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  background-color: var(--background-modifier-border);
+  /* Franchement opaque, et non la couleur de bordure du thème, qui est souvent
+     translucide : c'est la jaquette qui doit cacher le disque quand il y entre,
+     et un fond translucide l'aurait laissé transparaître. */
+  background-color: var(--background-primary);
   background-size: cover;
   background-position: center;
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 6px rgba(20, 21, 26, 0.85);
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px var(--background-modifier-border);
   transition: box-shadow 0.25s ease;
 }
 
-.vinyle-pochette-etagere:hover .vinyle-rondelle {
+.vinyle-pochette-etagere:hover .vinyle-jaquette {
   box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.42),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 6px rgba(20, 21, 26, 0.85);
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* Le disque dont la galerie est ouverte reste désigné. */
+.vinyle-pochette-etagere.vinyle-choisi .vinyle-jaquette {
+  box-shadow:
+    0 0 0 2px var(--interactive-accent),
+    0 6px 14px rgba(0, 0, 0, 0.4);
 }
 
 .vinyle-etiquette-etagere {
@@ -482,13 +535,13 @@
   -webkit-box-orient: vertical;
 }
 
-.vinyle-ajouter .vinyle-rondelle {
+.vinyle-ajouter .vinyle-jaquette {
   background-color: transparent;
   border: 1px dashed var(--background-modifier-border);
   box-shadow: none;
 }
 
-.vinyle-ajouter:hover .vinyle-rondelle {
+.vinyle-ajouter:hover .vinyle-jaquette {
   border-color: var(--interactive-accent);
   color: var(--interactive-accent);
   box-shadow: none;
@@ -509,6 +562,23 @@
   outline-offset: 10px;
 }
 .vinyle-plateau.vinyle-survol .vinyle-porte-disque { transform: scale(0.94); }
+
+/* Le disque du plateau se saisit pour être rangé, ce qui arrête la lecture. */
+.vinyle-plateau.vinyle-actif .vinyle-porte-disque { cursor: grab; }
+.vinyle-porte-disque:active { cursor: grabbing; }
+
+.vinyle-bac.vinyle-recoit {
+  outline: 2px dashed var(--background-modifier-border);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.vinyle-bac.vinyle-survol {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.vinyle-galette.vinyle-enleve { opacity: 0.35; }
 .vinyle-porte-disque { transition: transform 0.25s cubic-bezier(0.32, 0, 0.16, 1); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -516,4 +586,355 @@
   .vinyle-pochette-etagere,
   .vinyle-porte-disque { transition: none; }
   .vinyle-rail { scroll-behavior: auto; }
+}
+
+
+/* =========================================================================
+ * La galerie des morceaux
+ *
+ * Le bac tient l'étagère et le tiroir : un seul bloc à retrancher pour le
+ * calcul de taille, et la mise en colonne les emporte tous les deux.
+ * ========================================================================= */
+
+/* Le conteneur centre ses enfants : sans largeur explicite, le bac se
+   replierait sur ses jaquettes et la galerie n'aurait que deux colonnes,
+   étirées jusqu'à l'absurde. */
+/* Le conteneur centre ses enfants : sans étirement, le bac se replierait sur
+   ses jaquettes et la galerie n'aurait que deux colonnes, étirées jusqu'à
+   l'absurde. Et il déborde les marges du cadre pour venir au ras des bords,
+   comme un texte qui défile dans sa fenêtre. */
+.vinyle-bac {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  row-gap: 8px;
+  min-width: 0;
+}
+
+.vinyle-vue:not(.vinyle-large) > .vinyle-bac {
+  align-self: stretch;
+  width: auto;
+}
+
+/* La hauteur du tiroir est posée en JavaScript, en fraction du cadre : une
+   hauteur explicite, plutôt qu'un max-height, pour que la galerie puisse
+   remplir son tiroir et défiler dedans. */
+.vinyle-tiroir {
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  flex: 0 0 auto;
+  transition:
+    height 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease;
+}
+
+.vinyle-tiroir.vinyle-ouvert {
+  height: var(--vinyle-tiroir, 240px);
+  opacity: 1;
+}
+
+.vinyle-galerie {
+  height: 100%;
+  overflow-y: auto;
+  /* Même raison qu'ailleurs : une barre qui apparaît réduirait la largeur,
+     donc les colonnes, donc la hauteur, et l'observateur oscillerait. */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  justify-items: center;
+  gap: 12px 8px;
+  padding: 2px 0 0;
+  align-content: start;
+}
+
+.vinyle-galerie.vinyle-part {
+  transform: translateX(-40px);
+  opacity: 0;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.vinyle-galerie-vide {
+  grid-column: 1 / -1;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-style: italic;
+  text-align: center;
+  padding: 12px 6px;
+}
+
+.vinyle-galette {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+/* Un disque a la taille d'une pochette de l'étagère, comme s'il en sortait.
+   Le laisser suivre sa colonne le rendait démesuré dès qu'elles étaient peu
+   nombreuses. */
+.vinyle-galette-disque {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.05) 0 1px,
+      rgba(0, 0, 0, 0) 1px 4px),
+    radial-gradient(circle at 50% 50%,
+      var(--vinyle-noir-clair) 0 30%,
+      var(--vinyle-noir) 34% 92%,
+      var(--vinyle-noir-clair) 96% 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* Le disque paraît nu, sa pochette vient s'y poser quand Music la rend. */
+.vinyle-galette-image {
+  position: absolute;
+  left: 26%;
+  top: 26%;
+  width: 48%;
+  height: 48%;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.vinyle-galette-image.vinyle-habille {
+  opacity: 1;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.35);
+}
+
+.vinyle-galette-trou {
+  position: absolute;
+  left: 46.5%;
+  top: 46.5%;
+  width: 7%;
+  height: 7%;
+  border-radius: 50%;
+  background: var(--background-primary);
+  z-index: 2;
+}
+
+.vinyle-galette-texte {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.vinyle-galette-titre,
+.vinyle-galette-artiste {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-ui-smaller);
+}
+
+.vinyle-galette-artiste { color: var(--text-faint); }
+
+.vinyle-galette:hover .vinyle-galette-disque {
+  transform: translateY(-3px);
+  transition: transform 0.18s ease;
+}
+
+/* Le disque posé sur la platine n'est plus dans le bac : son emplacement reste,
+   vide, et se rebouche quand la musique change ou qu'on range le disque. La case
+   garde sa place pour que la galerie ne se réorganise pas sous les yeux. */
+.vinyle-galette.vinyle-sur-platine .vinyle-galette-disque {
+  background: none;
+  box-shadow: none;
+  border: 1px dashed var(--background-modifier-border);
+  transition: opacity 0.2s ease;
+}
+
+.vinyle-galette.vinyle-sur-platine .vinyle-galette-image,
+.vinyle-galette.vinyle-sur-platine .vinyle-galette-trou { opacity: 0; }
+
+/* Le titre reste, en plus pâle : sans lui on ne saurait plus quel disque
+   manque à l'appel. */
+.vinyle-galette.vinyle-sur-platine .vinyle-galette-texte { opacity: 0.45; }
+
+.vinyle-galette.vinyle-sur-platine:hover .vinyle-galette-disque {
+  transform: none;
+  border-color: var(--interactive-accent);
+}
+
+/* ---------- La chute ----------
+   La case porte la chute, le disque porte l'écrasement : une transformation
+   par élément, sinon l'une écrase l'autre. L'ombre se resserre en même temps,
+   sans quoi le disque semblerait glisser plutôt que tomber. */
+
+.vinyle-galette.vinyle-tombe {
+  animation: vinyle-chute 0.34s cubic-bezier(0.45, 0.03, 0.52, 0.96) both;
+}
+
+.vinyle-galette.vinyle-tombe .vinyle-galette-disque {
+  animation: vinyle-impact 0.34s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+@keyframes vinyle-chute {
+  0%   { transform: translateY(-30px); opacity: 0; }
+  40%  { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes vinyle-impact {
+  0%   { transform: scale(1.05); box-shadow: 0 14px 20px rgba(0, 0, 0, 0.55); }
+  78%  { transform: scale(1);    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45); }
+  86%  { transform: scaleX(1.09) scaleY(0.9); }
+  94%  { transform: scaleX(0.97) scaleY(1.04); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Le vol vers le plateau ----------
+   Hors du flux : animer la case elle-même déplacerait la galerie sous le
+   doigt. Le conteneur sert de repère, d'où sa position relative. */
+
+.vinyle-vue { position: relative; }
+
+.vinyle-vol {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: center center;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.05) 0 1px,
+      rgba(0, 0, 0, 0) 1px 4px),
+    radial-gradient(circle at 50% 50%,
+      var(--vinyle-noir-clair) 0 30%,
+      var(--vinyle-noir) 34% 92%,
+      var(--vinyle-noir-clair) 96% 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 0.46s cubic-bezier(0.3, 0.7, 0.3, 1),
+    opacity 0.16s ease;
+}
+
+.vinyle-vol.vinyle-vole { opacity: 1; }
+
+/* Second temps du rangement : le disque descend dans la pochette en passant
+   sous le bac. La jaquette étant opaque, elle le cache à mesure qu'il entre.
+   Le bac doit donc porter son propre plan, sans quoi le disque resterait
+   devant lui quoi qu'on fasse. */
+.vinyle-vol.vinyle-range {
+  z-index: 0;
+  transition: transform 0.3s cubic-bezier(0.45, 0, 0.7, 1), opacity 0.16s ease;
+}
+
+.vinyle-vol-image {
+  position: absolute;
+  left: 26%;
+  top: 26%;
+  width: 48%;
+  height: 48%;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+}
+
+.vinyle-vol-trou {
+  position: absolute;
+  left: 46.5%;
+  top: 46.5%;
+  width: 7%;
+  height: 7%;
+  border-radius: 50%;
+  background: var(--background-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyle-galette.vinyle-tombe,
+  .vinyle-galette.vinyle-tombe .vinyle-galette-disque { animation-duration: 1ms; }
+  .vinyle-tiroir,
+  .vinyle-plateau,
+  .vinyle-galerie.vinyle-part,
+  .vinyle-galette-image,
+  .vinyle-vol { transition: none; }
+  .vinyle-galerie { scroll-behavior: auto; }
+}
+
+/* La galerie nomme déjà chaque morceau : le bloc d'informations ferait double
+   emploi, et sa hauteur manque à la galerie dans un panneau étroit. En volet
+   large la place ne manque pas, et l'effacer y ferait grandir le disque à
+   l'ouverture, ce qui prendrait le geste à rebours. */
+.vinyle-vue.vinyle-galerie-ouverte:not(.vinyle-large) > .vinyle-infos { display: none; }
+
+/* ---------- Commandes de la barre d'état ---------- */
+
+.vinyle-barre-commandes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+}
+
+.vinyle-barre-bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.vinyle-barre-bouton:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+.vinyle-barre-bouton .svg-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* ---------- La pose à la main ----------
+   Un disque déposé ne s'échange pas : il se cale. Il arrive un peu plus grand,
+   s'enfonce légèrement, puis reprend sa taille. L'ombre du plateau se resserre
+   en même temps, ce qui lui donne son poids. Deux éléments, une propriété
+   chacun : la transformation au porteur, l'ombre au plateau. */
+
+.vinyle-porte-disque.vinyle-pose {
+  animation: vinyle-pose 0.36s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes vinyle-pose {
+  0%   { transform: scale(1.16); opacity: 0.45; }
+  52%  { transform: scale(0.978); opacity: 1; }
+  78%  { transform: scale(1.012); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.vinyle-plateau.vinyle-pose {
+  animation: vinyle-pose-ombre 0.36s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes vinyle-pose-ombre {
+  0%   { box-shadow: 0 24px 46px rgba(0, 0, 0, 0.5); }
+  52%  { box-shadow: 0 5px 16px rgba(0, 0, 0, 0.42); }
+  100% { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyle-porte-disque.vinyle-pose,
+  .vinyle-plateau.vinyle-pose { animation-duration: 1ms; }
 }
