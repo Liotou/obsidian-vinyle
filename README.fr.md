@@ -1,8 +1,7 @@
 # Vinyle
 
 > 🤖 **Écrit en vibe coding avec Claude.** Ce greffon a été conçu et programmé en
-> conversation avec Claude (Anthropic), à partir des besoins réels d'un
-> doctorant. Je ne suis pas développeur. Je décris ce dont j'ai besoin, je
+> conversation avec Claude (Anthropic). Je ne suis pas développeur. Je décris ce dont j'ai besoin, je
 > teste, je corrige, et le code prend forme au fil des échanges. Je le dis
 > d'emblée, par honnêteté, pour que vous sachiez ce que vous installez. Le code
 > est lisible, commenté, et sans dépendance : un seul fichier `main.js`, ni
