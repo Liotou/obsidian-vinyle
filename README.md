@@ -72,6 +72,12 @@ actually left once the titles, the controls and the progress bar have taken
 their share, rather than guessing it. A ceiling keeps a large screen from giving
 you an absurd record, and a fixed size remains available.
 
+A slim fader sits beside the platter, for **Music's own volume** — not your
+Mac's. It follows your hand on screen at once, while the command reaches Music
+at most five times a second: writing the volume costs 187 ms, so sending one per
+pixel would choke it. Move it up while the arm is raised and the sound comes
+back, arm and fader agreeing rather than fighting.
+
 `prefers-reduced-motion` turns off the rotation and every transition.
 
 ---
