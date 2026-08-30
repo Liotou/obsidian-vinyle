@@ -139,27 +139,6 @@ mais n'accepte qu'un point dans le script qu'on lui soumet : `set player
 position to 73,786` est une erreur de syntaxe. L'échec était silencieux.
 `toFixed` produit toujours un point, quel que soit le système.
 
-## Le glisseur de volume
-
-Une glissière étroite à côté du plateau, dans une scène qui les tient tous les
-deux : le calcul de taille n'a ainsi qu'une largeur à retrancher, et la mise en
-colonne du cadre large les emporte ensemble. Vérifié : 181 pixels de disque avec
-la glissière contre 202 sans, soit exactement les 21 qu'elle occupe.
-
-**Ce qui commande la mécanique.** Écrire le volume dans Music coûte 187 ms,
-mesuré sur cinq écritures. Un envoi par pixel l'étoufferait. Le bouchon suit
-donc le doigt à l'écran sans attendre, et la commande part au plus une fois
-toutes les 220 ms, plus une dernière au relâchement pour que la valeur finale
-soit exacte.
-
-Le bouchon n'est pas repeint pendant le geste, même piège que le bras : le
-battement le ferait sauter sous le doigt toutes les deux secondes. Hors du
-geste, il suit Music, donc aussi les changements faits ailleurs.
-
-Remonter le son défait le silence posé par le bras. Les deux commandes touchent
-la même chose ; les laisser se contredire aurait produit un bras levé sur un
-disque qu'on entend.
-
 ## L'étagère
 
 **Ce qui n'est pas possible.** Apple Music n'expose aucune file d'attente en

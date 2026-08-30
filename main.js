@@ -435,17 +435,11 @@ async function couperSon() {
   return avant > 0 ? avant : 100;       // déjà à zéro : on rendra un volume franc
 }
 
-function poserVolume(volume) {
-  const v = Math.max(0, Math.min(100, Math.round(volume || 0)));
+function rendreSon(volume) {
+  const v = Math.max(1, Math.min(100, Math.round(volume || 100)));
   return osascript(['-e',
     'tell application "Music" to set sound volume to ' + v], 4000)
     .then((r) => !r.erreur);
-}
-
-// Rendre le son après un silence du bras ne doit jamais rendre zéro, sinon le
-// bras se reposerait sur un disque toujours muet.
-function rendreSon(volume) {
-  return poserVolume(Math.max(1, Math.round(volume || 100)));
 }
 
 function positionner(secondes) {
@@ -1031,11 +1025,7 @@ class Platine {
     c.empty();
     c.addClass('vinyle-vue');
 
-    // Le plateau et le glisseur de volume voyagent ensemble dans une scène :
-    // le calcul de taille n'a ainsi qu'une largeur à retrancher, et la mise en
-    // colonne du cadre large les emporte tous les deux.
-    this.scene = c.createDiv({ cls: 'vinyle-scene' });
-    this.plateau = this.scene.createDiv({ cls: 'vinyle-plateau' });
+    this.plateau = c.createDiv({ cls: 'vinyle-plateau' });
     this.bras = this.plateau.createDiv({ cls: 'vinyle-bras' });
     this.bras.innerHTML =
       '<svg viewBox="0 0 40 150" aria-hidden="true">'
@@ -1055,15 +1045,6 @@ class Platine {
     this.pochette = this.disque.createDiv({ cls: 'vinyle-pochette' });
     this.etiquette = this.disque.createDiv({ cls: 'vinyle-etiquette' });
     this.trou = this.disque.createDiv({ cls: 'vinyle-trou' });
-
-    this.rail = this.scene.createDiv({ cls: 'vinyle-volume' });
-    this.rail.setAttribute('role', 'slider');
-    this.rail.setAttribute('aria-label', 'Volume de Music');
-    this.rail.setAttribute('aria-valuemin', '0');
-    this.rail.setAttribute('aria-valuemax', '100');
-    this.rail.createDiv({ cls: 'vinyle-volume-cran' });
-    this.bouchon = this.rail.createDiv({ cls: 'vinyle-volume-bouchon' });
-    this.ecouter(this.rail, 'mousedown', (e) => this.saisirVolume(e));
 
     // Sous le plateau et non par-dessus : au-dessus du disque, elles
     // interceptaient la souris et gênaient la prise du bras.
@@ -1240,13 +1221,7 @@ class Platine {
       for (const enfant of [this.commandes, this.infos, this.zoneProgression]) {
         if (visible(enfant)) occupe += enfant.offsetHeight + ecart;
       }
-      // Le glisseur prend sa part de largeur, sans quoi le disque la lui
-      // mangerait et le débordement pousserait la scène hors du cadre.
       let largeurPrise = cotes;
-      if (visible(this.rail)) {
-        const ecartScene = parseFloat(vue.getComputedStyle(this.scene).columnGap) || 0;
-        largeurPrise += this.rail.offsetWidth + ecartScene;
-      }
       let ecartBac = 0;
       if (visible(this.bac)) {
         if (large) {
@@ -1877,58 +1852,6 @@ class Platine {
     bouger(e);
   }
 
-  /* ---------------------------- Le volume ------------------------------ */
-
-  // Écrire le volume dans Music coûte 187 ms, mesuré. On ne peut donc pas
-  // l'envoyer à chaque pixel : le bouchon suit le doigt tout de suite, et la
-  // commande part au plus une fois toutes les 220 ms, plus une dernière au
-  // relâchement pour que la valeur finale soit exacte.
-  saisirVolume(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const doc = this.el.ownerDocument;
-    this.volumeSaisi = true;
-    let dernierEnvoi = 0;
-
-    const poser = (ev) => {
-      const r = this.rail.getBoundingClientRect();
-      if (!r.height) return;
-      const v = Math.round(Math.max(0, Math.min(100,
-        (1 - (ev.clientY - r.top) / r.height) * 100)));
-      this.valeurVolume = v;
-      this.peindreVolume(v);
-      const t = Date.now();
-      if (t - dernierEnvoi >= 220) { dernierEnvoi = t; this.envoyerVolume(v); }
-    };
-    const lacher = async () => {
-      doc.removeEventListener('mousemove', poser);
-      doc.removeEventListener('mouseup', lacher);
-      this.volumeSaisi = false;
-      await this.envoyerVolume(this.valeurVolume);
-      await this.greffon.battre(true);
-    };
-    doc.addEventListener('mousemove', poser);
-    doc.addEventListener('mouseup', lacher);
-    poser(e);
-  }
-
-  async envoyerVolume(v) {
-    // Remonter le son défait le silence du bras : les deux commandes touchent
-    // la même chose, autant qu'elles s'accordent au lieu de se contredire.
-    if (v > 0 && this.greffon.muetParNous) {
-      this.greffon.muetParNous = false;
-      this.greffon.volumeAvant = v;
-    }
-    await poserVolume(v);
-  }
-
-  peindreVolume(v) {
-    if (!this.rail || !this.bouchon) return;
-    const k = Math.max(0, Math.min(100, v || 0));
-    this.bouchon.style.top = (100 - k) + '%';
-    this.rail.setAttribute('aria-valuenow', String(Math.round(k)));
-  }
-
   // Pendant le geste, on montre où l'on tomberait sans rien commander encore.
   montrerApercu(angle) {
     const piste = this.greffon.piste;
@@ -1998,12 +1921,6 @@ class Platine {
     this.elTitre.setText(enPiste ? piste.titre : 'Rien ne joue');
     this.elArtiste.setText(enPiste ? (piste.artiste || '') : '');
     this.elAlbum.setText(enPiste ? (piste.album || '') : '');
-
-    // Même piège que le bras : repeindre pendant le geste ferait sauter le
-    // bouchon sous le doigt à chaque battement.
-    if (!this.volumeSaisi && piste && typeof piste.volume === 'number') {
-      this.peindreVolume(piste.volume);
-    }
 
     const total = enPiste ? (piste.duree || 0) : 0;
     const pos = enPiste ? Math.min(piste.position || 0, total) : 0;

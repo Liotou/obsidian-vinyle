@@ -457,7 +457,7 @@
 
 /* Cadre large : l'étagère se dresse à droite du plateau. */
 .vinyle-vue.vinyle-large { flex-direction: row; align-items: center; }
-.vinyle-vue.vinyle-large > .vinyle-scene { order: 1; }
+.vinyle-vue.vinyle-large > .vinyle-plateau { order: 1; }
 .vinyle-vue.vinyle-large > .vinyle-commandes { order: 2; }
 .vinyle-vue.vinyle-large > .vinyle-infos { order: 3; }
 .vinyle-vue.vinyle-large > .vinyle-progression { order: 4; }
@@ -945,85 +945,4 @@
 @media (prefers-reduced-motion: reduce) {
   .vinyle-porte-disque.vinyle-pose,
   .vinyle-plateau.vinyle-pose { animation-duration: 1ms; }
-}
-
-/* =========================================================================
- * Le glisseur de volume, à côté du plateau
- *
- * Discret : c'est le disque qu'on regarde, pas le réglage. Une glissière de
- * table de mixage, à peine plus large que son bouchon.
- * ========================================================================= */
-
-.vinyle-scene {
-  display: flex;
-  align-items: center;
-  column-gap: 10px;
-  flex: 0 0 auto;
-  max-width: 100%;
-}
-
-.vinyle-volume {
-  position: relative;
-  flex: 0 0 auto;
-  width: 11px;
-  height: calc(var(--vinyle-taille) * 0.58);
-  min-height: 70px;
-  border-radius: 6px;
-  background: var(--vinyle-noir);
-  box-shadow:
-    inset 0 2px 6px rgba(0, 0, 0, 0.8),
-    0 1px 0 rgba(255, 255, 255, 0.05);
-  cursor: ns-resize;
-}
-
-/* Le sillon creusé où court le bouchon. */
-.vinyle-volume-cran {
-  position: absolute;
-  left: 50%;
-  top: 7px;
-  bottom: 7px;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: rgba(0, 0, 0, 0.75);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-
-.vinyle-volume-bouchon {
-  position: absolute;
-  left: -4px;
-  width: 19px;
-  height: 11px;
-  margin-top: -5px;
-  border-radius: 2px;
-  background: linear-gradient(var(--background-modifier-border), var(--vinyle-noir-clair));
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  transition: box-shadow 0.15s ease;
-}
-
-/* La rainure du bouchon, celle par où le doigt le prend. */
-.vinyle-volume-bouchon::after {
-  content: '';
-  position: absolute;
-  left: 3px;
-  right: 3px;
-  top: 4px;
-  height: 2px;
-  border-radius: 1px;
-  background: rgba(0, 0, 0, 0.6);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-.vinyle-volume:hover .vinyle-volume-bouchon,
-.vinyle-volume:active .vinyle-volume-bouchon {
-  box-shadow:
-    0 0 0 1px var(--interactive-accent),
-    0 2px 6px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .vinyle-volume-bouchon { transition: none; }
 }

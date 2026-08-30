@@ -76,13 +76,6 @@ réellement disponible une fois les textes, les commandes et la progression
 servis, plutôt que de le deviner. Un plafond évite qu'un grand écran ne donne un
 disque démesuré, et un mode fixe reste disponible.
 
-Une fine glissière est posée à côté du plateau, pour **le volume de Music** et
-non celui de votre Mac. Elle suit votre main tout de suite à l'écran, la
-commande n'atteignant Music que cinq fois par seconde au plus : écrire le volume
-coûte 187 millisecondes, en envoyer un par pixel l'étoufferait. La remonter
-alors que le bras est levé rend le son, le bras et la glissière s'accordant au
-lieu de se contredire.
-
 `prefers-reduced-motion` coupe la rotation et toutes les transitions.
 
 ---
