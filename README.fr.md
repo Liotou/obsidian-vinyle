@@ -1,13 +1,13 @@
 # Vinyle
 
-> 🤖 **Écrit en vibe coding avec Claude.** Ce greffon a été conçu et programmé en
-> conversation avec Claude (Anthropic). Je ne suis pas développeur. Je décris ce
-> dont j'ai besoin, je teste, je corrige, et le code prend forme au fil des
-> échanges. Je le dis d'emblée, par honnêteté, pour que vous sachiez ce que vous
-> installez. Le code
-> est lisible, commenté, et sans dépendance : un seul fichier `main.js`, ni
-> TypeScript, ni bundler, ni `npm`, et pas la moindre ressource binaire — le
-> disque et le bras sont dessinés en CSS et en SVG en ligne.
+> 🤖 **Écrit en vibe coding avec Claude.** Ce greffon a été conçu et programmé
+> en conversation avec Claude (Anthropic). Je ne suis pas développeur. Je
+> décris ce dont j'ai besoin, je teste, je corrige, et le code prend forme au
+> fil des échanges. Je le dis d'emblée, par honnêteté, pour que vous sachiez ce
+> que vous installez. Le code est lisible, commenté, et sans dépendance : un
+> seul fichier `main.js`, ni TypeScript, ni bundler, ni `npm`, et pas la
+> moindre ressource binaire — le disque et le bras sont dessinés en CSS et en
+> SVG en ligne.
 >
 > *English: see [README.md](README.md).*
 
